@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>衣橱管家</title>
+<style>
+:root{--bg:#f7f4ee;--card:#fffdfa;--brown:#704226;--text:#29231f;--muted:#8d847b;--line:#eee8df;--green:#657b5c;--input:#fff;--soft:#f5eee4;--photo:#f3efe8;--panel:#fff}
+body.dark{--bg:#1f1d1a;--card:#2b2824;--brown:#d9a574;--text:#f3eee8;--muted:#aaa29a;--line:#49443e;--green:#9eb48f;--input:#332f2a;--soft:#3a342e;--photo:#302c27;--panel:#292622}
+*{box-sizing:border-box}
+body{margin:0;background:#e9e5df;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--text)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{width:min(1180px,100%);min-height:100vh;margin:auto;background:var(--bg);display:flex}
+.sidebar{width:220px;background:var(--card);border-right:1px solid var(--line);padding:30px 18px;position:sticky;top:0;height:100vh}
+.logo{font-size:24px;font-weight:800;margin:0 8px 30px}
+.nav button{width:100%;border:0;background:none;text-align:left;padding:13px 14px;border-radius:13px;margin:3px 0;color:#756d65}
+.nav button.active{background:#f1e8dc;color:var(--brown);font-weight:700}
+.main{flex:1;padding:30px 34px;overflow:hidden}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:15px}
+h1{font-size:28px;margin:0}
+.sub{color:var(--muted);font-size:13px;margin-top:5px}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.iconbtn,.primary{border:1px solid var(--line);background:var(--input);border-radius:12px;padding:10px 14px}
+.primary{background:var(--brown);color:#fff;border-color:var(--brown);font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:25px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+.stat small{color:var(--muted)}
+.stat b{display:block;font-size:25px;margin-top:7px}
+.toolbar{display:flex;gap:10px;margin-bottom:18px}
+.search{flex:1;position:relative}
+.search input{width:100%;padding:12px 14px 12px 40px;border:1px solid var(--line);border-radius:12px;background:var(--input)}
+.search span{position:absolute;left:14px;top:10px;color:#aaa}
+select{border:1px solid var(--line);border-radius:12px;padding:0 14px;background:var(--input);color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+.item{background:var(--panel);border:1px solid var(--line);border-radius:15px;overflow:hidden;cursor:pointer;transition:.15s}
+.item:hover{transform:translateY(-2px);box-shadow:0 8px 25px #5a402018}
+.photo{height:190px;background:var(--photo);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.photo img{width:100%;height:100%;object-fit:cover}
+.emoji{font-size:72px}
+.info{padding:12px}
+.name{font-weight:700}
+.meta,.code-text{font-size:12px;color:var(--muted);margin-top:4px}
+.retail-price{margin-top:8px;font-weight:800;color:var(--brown);font-size:15px}
+.stock-line{font-size:12px;color:var(--green);font-weight:700;margin-top:7px}
+.empty{text-align:center;color:var(--muted);padding:70px 10px;grid-column:1/-1}
+.page{display:none}
+.page.active{display:block}
+.category-list{display:grid;gap:10px}
+.cat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.category-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ico{font-size:25px;width:30px}
+.category-name{font-weight:700}
+.category-count{margin-left:auto}
+.sub-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.sub-item{display:flex;align-items:center;background:var(--soft);border-radius:99px;overflow:hidden}
+.sub-main{border:0;background:none;padding:6px 8px 6px 11px;color:var(--brown);font-size:12px}
+.sub-delete{border:0;background:#e9dfd3;color:#806b5a;width:25px;height:25px}
+.no-sub{color:var(--muted);font-size:13px}
+.analytics{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}
+.panel h3{margin:0 0 18px}
+.bars{height:190px;display:flex;align-items:end;gap:15px;border-bottom:1px solid #ddd;padding:0 8px}
+.barwrap{flex:1;height:100%;display:flex;flex-direction:column;justify-content:end;align-items:center;gap:6px}
+.bar{width:65%;background:#879877;border-radius:7px 7px 0 0;min-height:5px}
+.barlabel{font-size:12px;color:#777}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.field{display:flex;flex-direction:column;gap:7px}
+.field.full{grid-column:1/-1}
+.field label{font-size:13px;font-weight:700}
+.field input,.field select,.field textarea{border:1px solid var(--line);padding:12px;border-radius:11px;background:var(--input)}
+.field textarea{min-height:90px;resize:vertical}
+.preview{min-height:180px;background:var(--soft);border:1px dashed #d8d0c6;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:auto;color:var(--muted);gap:8px;padding:8px;flex-wrap:wrap}
+.preview img{width:100px;height:120px;object-fit:cover;border-radius:10px;flex-shrink:0}
+.detail{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.detail-colors{grid-column:1/-1;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px}
+.detailphoto{height:480px;background:var(--photo);border-radius:18px;overflow:hidden;position:relative}
+.photo-track{display:flex;width:100%;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;scrollbar-width:none}
+.photo-track::-webkit-scrollbar{display:none}
+.detail-slide{min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;scroll-snap-align:start}
+.detail-slide img{width:100%;height:100%;object-fit:cover}
+.detailphoto .emoji{font-size:130px}
+.photo-arrow{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;border-radius:50%;background:#2b2824cc;color:#60452f;font-size:22px;z-index:2}
+.photo-prev{left:12px}
+.photo-next{right:12px}
+.photo-count{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#241a1290;color:#fff;border-radius:99px;padding:5px 10px;font-size:12px;z-index:2}
+.detailcard{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:25px}
+.detailcard h2{margin-top:0}
+.rows{display:grid;gap:13px;margin:20px 0}
+.row{display:flex}
+.row span:first-child{color:var(--muted);width:100px;flex-shrink:0}
+.row span:last-child{font-weight:600}
+.profit-row{color:var(--green)}
+.colors-panel{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.colors-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.colors-head h3{margin:0}
+.color-list{display:grid;gap:10px}
+.color-row{display:flex;align-items:center;gap:10px;background:var(--soft);border:1px solid var(--line);padding:10px;border-radius:12px}
+.color-swatch{width:34px;height:34px;border-radius:9px;border:1px solid #d8d0c6;flex-shrink:0}
+.color-info{flex:1;min-width:0}
+.color-name{font-weight:700}
+.color-hex{font-size:11px;color:var(--muted);margin-top:2px}
+.stock-control{display:flex;align-items:center;gap:5px}
+.stock-control input{width:62px;border:1px solid var(--line);background:var(--input);border-radius:8px;padding:7px;text-align:center}
+.color-delete{border:0;background:#eee5dc;border-radius:8px;width:32px;height:32px;color:#806b5a}
+.add-color-box{display:none;background:var(--soft);border:1px dashed #d8d0c6;border-radius:13px;padding:14px;margin-top:10px}
+.add-color-box.show{display:block}
+.color-form{display:grid;grid-template-columns:55px 1fr 100px auto;gap:8px;align-items:center}
+.color-form input{border:1px solid var(--line);background:var(--input);border-radius:9px;padding:9px}
+.color-form input[type=color]{width:55px;height:42px;padding:3px}
+.hint{font-size:11px;color:var(--muted);margin-top:8px}
+.edit-color-box{display:grid;grid-template-columns:64px 1fr 1fr auto;gap:8px;align-items:center;padding:12px;background:var(--soft);border:1px solid var(--line);border-radius:12px}
+.edit-color-box input{border:1px solid var(--line);background:var(--input);color:var(--text);border-radius:9px;padding:10px}
+.edit-color-box input[type=color]{width:64px;height:44px;padding:3px}
+.edit-color-tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.edit-color-tools button{border:1px solid var(--line);background:var(--input);border-radius:9px;padding:8px 11px;font-size:12px}
+.edit-color-palette{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:9px}
+.edit-color-palette select{min-height:40px}
+.edit-color-hex{text-transform:uppercase}
+@media(max-width:650px){.edit-color-box{grid-template-columns:55px 1fr}.edit-color-box input:nth-child(3){grid-column:1/-1}.edit-color-box button{grid-column:1/-1}}
+.modal{position:fixed;inset:0;background:#241a1290;display:none;align-items:center;justify-content:center;padding:20px;z-index:5}
+.modal.show{display:flex}
+.modalbox{background:var(--card);border-radius:20px;width:min(650px,100%);padding:25px;max-height:90vh;overflow:auto}
+.modalhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}
+.modalhead h2{margin:0}
+.sale-summary{background:var(--soft);border-radius:13px;padding:14px;margin-bottom:15px}
+.sale-total{font-size:22px;font-weight:800;color:var(--brown);margin-top:12px}
+.sales-list{display:grid;gap:10px}
+.sale-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;display:flex;align-items:center;gap:15px}
+.sale-main{flex:1}
+.sale-name{font-weight:700}
+.sale-meta{font-size:12px;color:var(--muted);margin-top:5px}
+.sale-money{font-weight:800;color:var(--brown)}
+.sale-empty{text-align:center;color:var(--muted);padding:50px}
+.datebox{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--input)}
+.drive-status{font-size:12px;margin-top:8px;color:var(--muted)}
+.drive-ok{color:var(--green);font-weight:700}
+.drive-login{margin-top:12px}
+.spec-edit{padding:7px 10px!important;font-size:12px}
+.spec-fields{display:grid;grid-template-columns:1fr 1fr 100px auto;gap:8px;align-items:center}
+.spec-fields input{border:1px solid var(--line);background:var(--input);border-radius:9px;padding:9px}
+.spec-tag{min-width:58px;padding:7px 11px;border-radius:9px;background:var(--soft);border:1px solid var(--line);font-weight:700;text-align:center}
+.variant-color{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.variant-color .color-name{font-weight:700}
+.spec-size-badge{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;padding:4px 9px;border-radius:99px;background:var(--soft);border:1px solid var(--line);color:var(--brown);font-size:12px;font-weight:700;vertical-align:middle;white-space:nowrap}
+.dark select option{background:#2b2824;color:#f3eee8}
+.palette-section{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
+.palette-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+.palette-head h3{margin:0}
+.palette-grid{display:flex;flex-wrap:wrap;gap:10px}
+.palette-item{position:relative;width:64px;text-align:center}
+.palette-color{width:52px;height:52px;margin:auto;border-radius:14px;border:1px solid var(--line);cursor:pointer;box-shadow:0 2px 7px #00000012;transition:.15s}
+.palette-color:hover{transform:scale(1.06)}
+.palette-name{margin-top:5px;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.palette-remove{position:absolute;top:-5px;right:0;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#5d5046;color:#fff;font-size:13px;line-height:20px}
+.palette-empty{color:var(--muted);font-size:13px;padding:8px 0}
+.palette-add-row{display:grid;grid-template-columns:60px 1fr auto;gap:8px;align-items:center;margin-top:14px}
+.palette-add-row input[type=color]{width:60px;height:42px;padding:3px;border:1px solid var(--line);border-radius:9px;background:var(--input)}
+.palette-add-row input[type=text]{border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--input);color:var(--text)}
+.color-tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.color-tool-btn{border:1px solid var(--line);background:var(--input);border-radius:9px;padding:8px 11px;font-size:12px}
+.palette-select-row{display:flex;align-items:center;gap:8px;margin-top:10px}
+.palette-select-row select{flex:1;min-height:40px}
+.eyedropper-modalbox{width:min(900px,100%);max-height:92vh}
+.eyedropper-layout{display:grid;grid-template-columns:1fr 280px;gap:18px}
+.eye-photo-area{background:var(--soft);border:1px solid var(--line);border-radius:15px;min-height:420px;display:flex;align-items:center;justify-content:center;overflow:auto;padding:12px}
+.eye-photo-wrap{position:relative;max-width:100%;max-height:70vh;display:inline-block}
+#eyeCanvas{display:block;max-width:100%;max-height:70vh;border-radius:10px;cursor:crosshair}
+.eye-side{background:var(--soft);border:1px solid var(--line);border-radius:15px;padding:18px}
+.sample-color{width:100%;height:100px;border-radius:15px;border:1px solid var(--line);margin-bottom:15px}
+.sample-hex{font-size:20px;font-weight:800;color:var(--brown);text-align:center;margin-bottom:14px}
+.sample-name-input{width:100%;border:1px solid var(--line);background:var(--input);color:var(--text);border-radius:10px;padding:11px;margin-bottom:10px}
+.photo-picker-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.photo-picker-btn{width:65px;height:65px;padding:0;border:2px solid transparent;border-radius:9px;overflow:hidden;background:var(--photo)}
+.photo-picker-btn.active{border-color:var(--brown)}
+.photo-picker-btn img{width:100%;height:100%;object-fit:cover}
+.palette-modalbox{width:min(620px,100%)}
+.palette-manager-list{display:grid;gap:8px;max-height:300px;overflow:auto;margin-bottom:15px}
+.palette-manager-row{display:flex;align-items:center;gap:10px;background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:10px}
+.palette-manager-swatch{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);flex-shrink:0}
+.palette-manager-info{flex:1}
+.palette-manager-name{font-weight:700}
+.palette-manager-hex{color:var(--muted);font-size:11px;margin-top:2px}
+body.dark{background:#151412}
+body.dark .iconbtn,body.dark .primary{color:var(--text)}
+body.dark .primary{background:var(--brown);color:#211b16;border-color:var(--brown)}
+body.dark .nav button{color:#b8b0a8}
+body.dark .nav button.active{background:#3b3027;color:#e6b07f}
+body.dark .sub-item{background:var(--soft)}
+body.dark .sub-main{color:#e0aa78}
+body.dark .sub-delete{background:#4a4038;color:#cdb9a8}
+body.dark .color-delete{background:#4a4038;color:#d2c2b5}
+body.dark .photo-arrow{background:#332e29cc;color:#e5c1a0}
+body.dark .photo-count{background:#000000aa}
+body.dark .bar{background:#879877}
+body.dark .search span{color:#aaa}
+body.dark input,body.dark select,body.dark textarea{color:var(--text)}
+body.dark input::placeholder,body.dark textarea::placeholder{color:#8f8881}
+@media(max-width:900px){.sidebar{width:75px;padding:20px 8px}.logo{font-size:0}.logo:after{content:"衣";font-size:24px}.nav button{font-size:0;text-align:center}.nav button::first-letter{font-size:20px}.main{padding:22px}.grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:650px){.app{display:block}.sidebar{position:fixed;bottom:0;top:auto;width:100%;height:66px;z-index:4;border:0;border-top:1px solid var(--line);padding:6px}.logo{display:none}.nav{display:flex;justify-content:space-around}.nav button{font-size:12px!important;padding:8px}.main{padding:18px 14px 85px}.top{gap:10px}.top h1{font-size:23px}.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:repeat(2,1fr)}.photo{height:155px}.toolbar{flex-wrap:wrap}.toolbar .search{flex-basis:100%}.toolbar select{flex:1;min-height:42px}.formgrid,.detail,.analytics{grid-template-columns:1fr}.detail-colors{grid-column:auto}.detailphoto{height:360px}.color-form{grid-template-columns:50px 1fr 80px}.color-form button{grid-column:1/-1}.color-row{align-items:flex-start}.stock-control{flex-direction:column;align-items:flex-end}.sale-card{align-items:flex-start;flex-wrap:wrap}.sale-money{width:100%;text-align:right}.palette-add-row{grid-template-columns:55px 1fr}.palette-add-row button{grid-column:1/-1}.eyedropper-layout{grid-template-columns:1fr}.eye-photo-area{min-height:300px}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+<div class="logo">衣橱管家</div>
+<div class="nav">
+<button class="active" data-page="home">⌂ 首页</button>
+<button data-page="categories">▦ 分类</button>
+<button data-page="stats">▥ 统计</button>
+<button data-page="sales">¥ 销售</button>
+<button data-page="about">○ 我的</button>
+</div>
+</aside>
+<main class="main">
+<section id="home" class="page active">
+<div class="top">
+<div><h1>衣服库存</h1><div class="sub">管理你的衣橱，清楚知道每一件衣服在哪里</div></div>
+<div class="actions">
+<button class="iconbtn" onclick="focusSearch()">⌕</button>
+<button class="primary" onclick="openAdd()">＋ 添加衣服</button>
+</div>
+</div>
+<div class="stats">
+<div class="stat"><small>总库存</small><b id="sTotal">0</b></div>
+<div class="stat"><small>上衣</small><b id="sTop">0</b></div>
+<div class="stat"><small>下装</small><b id="sBottom">0</b></div>
+<div class="stat"><small>其他</small><b id="sOther">0</b></div>
+</div>
+<div class="toolbar">
+<div class="search"><span>⌕</span><input id="search" placeholder="搜索名称、编码、品牌..." oninput="render()"></div>
+<select id="filter" onchange="updateSubFilter();render()"></select>
+<select id="subFilter" onchange="render()"><option value="">全部小分类</option></select>
+</div>
+<div id="grid" class="grid"></div>
+</section>
+<section id="categories" class="page">
+<div class="top">
+<div><h1>分类</h1><div class="sub">自定义你的衣橱分类和小分类</div></div>
+<button class="primary" onclick="addCategory()">＋ 添加大分类</button>
+</div>
+<div id="catList" class="category-list"></div>
+</section>
+<section id="stats" class="page">
+<div class="top">
+<div><h1>统计</h1><div class="sub">了解你的衣橱构成</div></div>
+</div>
+<div class="analytics">
+<div class="panel"><h3>库存概览</h3><div id="summary"></div></div>
+<div class="panel"><h3>分类数量</h3><div class="bars" id="bars"></div></div>
+</div>
+</section>
+<section id="sales" class="page">
+<div class="top">
+<div><h1>销售记录</h1><div class="sub">查看指定日期的全部销售单和营业额</div></div>
+</div>
+<div class="panel">
+<div class="toolbar">
+<input class="datebox" type="date" id="salesDate" onchange="renderSales()">
+<button class="iconbtn" onclick="setSalesDate(0)">今天</button>
+<button class="iconbtn" onclick="setSalesDate(-1)">昨天</button>
+</div>
+<div id="salesSummary"></div>
+<div id="salesList" class="sales-list"></div>
+</div>
+</section>
+<section id="about" class="page">
+<div class="top">
+<div><h1>我的</h1><div class="sub">衣橱设置</div></div>
+</div>
+<div class="panel">
+<h3>外观</h3>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:15px;padding:12px 0 18px;border-bottom:1px solid var(--line);margin-bottom:18px">
+<div><b>深色模式</b><div class="sub">切换深色界面，设置会自动保存</div></div>
+<button class="iconbtn" id="themeBtn" onclick="toggleTheme()">🌙 深色模式</button>
+</div>
+<div class="palette-section">
+<div class="palette-head">
+<div><h3>自定义调色板</h3><div class="sub">保存你自己喜欢的颜色，添加衣服颜色时可以直接使用</div></div>
+<button class="iconbtn" onclick="openPaletteManager()">管理调色板</button>
+</div>
+<div id="myPalette" class="palette-grid"></div>
+</div>
+<h3 style="margin-top:28px">数据</h3>
+<p>衣服资料、分类、颜色库存和销售记录会同步到你的 Google Drive。照片也保存在 Google Drive。电脑和手机登录同一个 Google 账号后可以使用同一份数据。</p>
+<div id="driveStatus" class="drive-status">Google Drive：未连接</div>
+<div id="syncStatus" class="drive-status">数据：未同步</div>
+<div class="drive-login"><button class="primary" onclick="googleLogin()">连接 Google Drive</button></div>
+<br>
+<button class="iconbtn" onclick="clearAll()">清空全部库存</button>
+<button class="iconbtn" onclick="resetCategories()">恢复默认分类</button>
+</div>
+</section>
+<section id="detail" class="page">
+<div class="top">
+<div><h1>衣服详情</h1></div>
+<button class="iconbtn" onclick="showPage('home')">← 返回</button>
+</div>
+<div id="detailContent"></div>
+</section>
+</main>
+</div>
+<div class="modal" id="modal">
+<div class="modalbox">
+<div class="modalhead"><h2 id="modalTitle">添加衣服</h2><button class="iconbtn" onclick="closeModal()">×</button></div>
+<form id="form" class="formgrid">
+<input id="editId" type="hidden">
+<div class="field full">
+<label>照片（可选择多张）</label>
+<div class="preview" id="preview">点击下面选择照片</div>
+<input id="photo" type="file" accept="image/*" multiple onchange="previewPhotos(event)">
+</div>
+<div class="field"><label>名称</label><input id="name" required placeholder="例如：米色风衣"></div>
+<div class="field"><label>编码</label><input id="code" placeholder="例如：DR-2026-001"></div>
+<div class="field"><label>大分类</label><select id="category" onchange="updateSubcategory()"></select></div>
+<div class="field"><label>小分类</label><select id="subcategory"></select></div>
+<div class="field"><label>品牌</label><input id="brand" placeholder="ZARA"></div>
+<div class="field"><label>购买价格</label><input id="price" type="number" min="0" step="0.01" placeholder="299"></div>
+<div class="field"><label>零售价格</label><input id="retailPrice" type="number" min="0" step="0.01" placeholder="399"></div>
+<div class="field"><label>购买日期</label><input id="date" type="date"></div>
+<div class="field"><label>所在位置</label><input id="location" placeholder="衣柜左侧"></div>
+<div class="field full">
+<label>衣服颜色</label>
+<div class="edit-color-box">
+<input id="editColorPicker" type="color" value="#d8c3a5" title="选择颜色" oninput="syncEditColorFromPicker()">
+<input id="editColorHex" class="edit-color-hex" value="#D8C3A5" maxlength="7" placeholder="#D8C3A5" oninput="syncEditColorFromHex()">
+<input id="editColorName" placeholder="颜色名称，例如：奶油白">
+<button type="button" class="color-tool-btn" onclick="openEditEyedropper()">📷 吸取照片颜色</button>
+</div>
+<div class="edit-color-palette">
+<select id="editColorPalette" onchange="applyEditPalette()"><option value="">选择我的调色板颜色</option></select>
+<button type="button" class="iconbtn" onclick="saveEditColorToPalette()">＋ 保存到调色板</button>
+</div>
+<div class="hint">可以直接输入 HEX 色值、点击色块选择颜色，也可以从衣服照片中吸取颜色。</div>
+</div>
+<div class="field full"><label>备注</label><textarea id="note" placeholder="例如：适合春秋穿"></textarea></div>
+<div class="field full"><button class="primary" id="saveBtn" type="submit">保存衣服</button></div>
+</form>
+</div>
+</div>
+<div class="modal" id="saleModal">
+<div class="modalbox">
+<div class="modalhead"><h2>确认卖掉</h2><button class="iconbtn" onclick="closeSale()">×</button></div>
+<div id="saleInfo"></div>
+<form id="saleForm" class="formgrid">
+<input id="saleItemId" type="hidden">
+<div class="field"><label>规格</label><select id="saleVariant" onchange="updateSaleStock()"></select></div>
+<div class="field"><label>库存</label><input id="saleAvailable" disabled></div>
+<div class="field"><label>卖出数量</label><input id="saleQty" type="number" min="1" step="1" value="1" onchange="updateSaleTotal()"></div>
+<div class="field"><label>销售单价</label><input id="salePrice" type="number" min="0" step="0.01" placeholder="399" oninput="updateSaleTotal()"></div>
+<div class="field"><label>销售日期</label><input id="saleDate" type="date"></div>
+<div class="field full"><div class="sale-summary">销售金额：<span id="saleTotal">€0.00</span></div></div>
+<div class="field full"><button class="primary" type="submit">确认卖掉</button></div>
+</form>
+</div>
+</div>
+<div class="modal" id="paletteModal">
+<div class="modalbox palette-modalbox">
+<div class="modalhead"><h2>自定义调色板</h2><button class="iconbtn" onclick="closePaletteManager()">×</button></div>
+<div style="color:var(--muted);font-size:13px;margin-bottom:14px">在这里保存你自己的颜色。之后添加衣服颜色时，可以直接使用这些颜色。</div>
+<div id="paletteManagerList" class="palette-manager-list"></div>
+<div style="border-top:1px solid var(--line);padding-top:15px">
+<b>添加颜色到调色板</b>
+<div class="palette-add-row">
+<input id="paletteNewColor" type="color" value="#d8c3a5">
+<input id="paletteNewName" type="text" placeholder="颜色名称，例如：奶油白">
+<button class="primary" onclick="addPaletteColor()">添加</button>
+</div>
+</div>
+</div>
+</div>
+<div class="modal" id="eyedropperModal">
+<div class="modalbox eyedropper-modalbox">
+<div class="modalhead">
+<div><h2>从衣服照片吸色</h2><div class="sub">点击照片中的任意位置即可取得颜色</div></div>
+<button class="iconbtn" onclick="closeEyedropper()">×</button>
+</div>
+<div class="eyedropper-layout">
+<div>
+<div class="eye-photo-area"><div class="eye-photo-wrap"><canvas id="eyeCanvas"></canvas></div></div>
+<div id="photoPickerList" class="photo-picker-list"></div>
+</div>
+<div class="eye-side">
+<div style="font-size:13px;color:var(--muted);margin-bottom:10px">当前取得的颜色</div>
+<div id="sampleColor" class="sample-color" style="background:#d8c3a5"></div>
+<div id="sampleHex" class="sample-hex">#D8C3A5</div>
+<input id="sampleName" class="sample-name-input" placeholder="颜色名称，例如：奶油白">
+<button class="primary" style="width:100%" onclick="useSampledColor()">使用这个颜色</button>
+<button class="iconbtn" style="width:100%;margin-top:8px" onclick="saveSampleToPalette()">加入我的调色板</button>
+<div class="hint" style="margin-top:14px">小提示：选择衣服上颜色比较均匀的位置，取得的颜色会更加准确。</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+const CLIENT_ID="575382709878-r0ivjeb9uf4d46lcoua3735r15ivsqbc.apps.googleusercontent.com";
+const DRIVE_SCOPE="https://www.googleapis.com/auth/drive.file";
+const key="wardrobe_inventory_v1";
+const categoryKey="wardrobe_categories_v1";
+const salesKey="wardrobe_sales_v1";
+const paletteKey="wardrobe_palette_v1";
+const defaultCats=["上衣","下装","外套","全身","鞋子","包包","配饰","其他"];
+const defaultSubcats={
+"上衣":["衬衫","短袖","卫衣","毛衣","针织衫","背心","吊带","Polo衫","其他"],
+"下装":["牛仔裤","西裤","休闲裤","短裤","半身裙","运动裤","打底裤","其他"],
+"外套":["风衣","大衣","羽绒服","夹克","西装","针织开衫","皮衣","其他"],
+"全身":["长裙","短裙","吊带裙","针织裙","礼服","其他"],
+"鞋子":["运动鞋","靴子","高跟鞋","平底鞋","凉鞋","拖鞋","其他"],
+"包包":["托特包","单肩包","斜挎包","手提包","背包","钱包"],
+"配饰":["帽子","围巾","手套","腰带","首饰","眼镜","其他"],
+"其他":["家居服","睡衣","泳装","其他"]
+};
+const icons={上衣:"👕",下装:"👖",外套:"🧥",全身:"👗",鞋子:"👟",包包:"👜",配饰:"💍",其他:"◉"};
+let categoryData=JSON.parse(localStorage.getItem(categoryKey)||"null");
+if(!categoryData){categoryData={cats:[...defaultCats],subcats:JSON.parse(JSON.stringify(defaultSubcats))}}
+else{
+categoryData.cats=(categoryData.cats||[]).map(x=>x==="连衣裙"?"全身":x);
+categoryData.subcats=categoryData.subcats||{};
+if(categoryData.subcats["连衣裙"]&&!categoryData.subcats["全身"]){categoryData.subcats["全身"]=categoryData.subcats["连衣裙"];delete categoryData.subcats["连衣裙"]}
+defaultCats.forEach(c=>{if(!categoryData.subcats[c]){categoryData.subcats[c]=defaultSubcats[c]||[]}});
+if(!categoryData.cats.length){categoryData.cats=[...defaultCats]}
+}
+let cats=categoryData.cats;
+let subcats=categoryData.subcats;
+let items=JSON.parse(localStorage.getItem(key)||"null")||[];
+let sales=JSON.parse(localStorage.getItem(salesKey)||"null")||[];
+let palette=JSON.parse(localStorage.getItem(paletteKey)||"null")||[];
+let uploadedFiles=[];
+let uploadedPreviews=[];
+let saleTarget=null;
+let accessToken=null;
+let tokenClient=null;
+let driveReady=false;
+let imageCache={};
+let eyedropperItemId=null;
+let eyedropperImages=[];
+let eyedropperImageUrls=[];
+let eyedropperCurrentIndex=0;
+let sampledHex="#d8c3a5";
+function normalizeImages(x){
+if(Array.isArray(x.images)&&x.images.length){return x.images.filter(Boolean)}
+if(x.image){return[x.image]}
+return[]
+}
+function normalizeColors(x){
+if(Array.isArray(x.colors)&&x.colors.length){return x.colors.map(c=>({name:String(c.name||"未命名"),hex:c.hex||"#d8c3a5",stock:Math.max(0,Number(c.stock)||0)}))}
+if(x.color||x.colorHex){return[{name:x.color||"未命名",hex:x.colorHex||"#d8c3a5",stock:Math.max(1,Number(x.stock)||1)}]}
+return[{name:"其他",hex:"#d8c3a5",stock:1}]
+}
+function normalizeSizes(x){
+return Array.isArray(x.sizes)?x.sizes.map(z=>({name:String(z.name||"未指定"),stock:Math.max(0,Number(z.stock)||0)})):[]
+}
+function normalizeVariants(x){
+return Array.isArray(x.variants)?x.variants.map(v=>({color:String(v.color||"未指定"),hex:v.hex||"#d8c3a5",size:String(v.size||"未指定"),stock:Math.max(0,Number(v.stock)||0)})):[]
+}
+function normalizeMode(x){return x.stockMode==="size"||x.stockMode==="both"?x.stockMode:"color"}
+items=items.map(x=>({
+...x,
+category:x.category==="连衣裙"?"全身":x.category,
+code:x.code||"",
+retailPrice:x.retailPrice||"",
+subCategory:x.subCategory||"其他",
+images:normalizeImages(x),
+stockMode:normalizeMode(x),
+colors:normalizeColors(x),
+sizes:normalizeSizes(x),
+variants:normalizeVariants(x)
+}));
+const $=id=>document.getElementById(id);
+let cloudFileId=null;
+let cloudSyncTimer=null;
+let cloudSyncing=false;
+let cloudDirty=false;
+let cloudLoading=false;
+const CLOUD_FILE_NAME="衣橱管家_云端数据.json";
+const saveLocal=()=>{
+localStorage.setItem(key,JSON.stringify(items));
+localStorage.setItem(salesKey,JSON.stringify(sales));
+localStorage.setItem(categoryKey,JSON.stringify({cats,subcats}));
+localStorage.setItem(paletteKey,JSON.stringify(palette));
+};
+function cloudPayload(){return {version:1,updatedAt:new Date().toISOString(),items,sales,cats,subcats,palette};}
+function markCloudDirty(){
+if(cloudLoading||!driveReady||!accessToken)return;
+cloudDirty=true;
+clearTimeout(cloudSyncTimer);
+cloudSyncTimer=setTimeout(()=>syncCloudNow(),700);
+}
+const save=()=>{localStorage.setItem(key,JSON.stringify(items));markCloudDirty()};
+const saveSales=()=>{localStorage.setItem(salesKey,JSON.stringify(sales));markCloudDirty()};
+const saveCategories=()=>{localStorage.setItem(categoryKey,JSON.stringify({cats,subcats}));markCloudDirty()};
+function savePalette(){localStorage.setItem(paletteKey,JSON.stringify(palette));markCloudDirty()}
+function setSyncStatus(text,ok=false){
+let el=$("syncStatus");
+if(el){el.textContent=text;el.className="drive-status"+(ok?" drive-ok":"")}
+}
+async function findCloudFile(){
+if(!accessToken)throw new Error("没有 Google Drive 权限");
+let q=`name = '${CLOUD_FILE_NAME.replace(/'/g,"\\'")}' and trashed = false`;
+let url="https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent(q)+"&spaces=drive&fields=files(id,name,modifiedTime)&pageSize=10";
+let r=await fetch(url,{headers:{Authorization:"Bearer "+accessToken}});
+if(r.status===401)throw new Error("Google 登录已过期");
+if(!r.ok)throw new Error(await r.text()||"无法查找云端数据");
+let data=await r.json();
+return data.files?.[0]||null;
+}
+async function downloadCloudFile(id){
+let r=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
+if(r.status===401)throw new Error("Google 登录已过期");
+if(!r.ok)throw new Error(await r.text()||"无法读取云端数据");
+return await r.json();
+}
+async function createCloudFile(){
+let metadata={name:CLOUD_FILE_NAME,mimeType:"application/json",description:"衣橱管家电脑与手机同步数据"};
+let body=JSON.stringify(cloudPayload());
+let form=new FormData();
+form.append("metadata",new Blob([JSON.stringify(metadata)],{type:"application/json"}));
+form.append("file",new Blob([body],{type:"application/json"}));
+let r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime",{method:"POST",headers:{Authorization:"Bearer "+accessToken},body:form});
+if(!r.ok)throw new Error(await r.text()||"创建云端数据失败");
+let f=await r.json();
+cloudFileId=f.id;
+return f;
+}
+async function updateCloudFile(){
+let body=JSON.stringify(cloudPayload());
+let r=await fetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(cloudFileId)+"?uploadType=media",{method:"PATCH",headers:{Authorization:"Bearer "+accessToken,"Content-Type":"application/json"},body});
+if(r.status===404){cloudFileId=null;return await createCloudFile()}
+if(r.status===401)throw new Error("Google 登录已过期");
+if(!r.ok)throw new Error(await r.text()||"更新云端数据失败");
+return await r.json();
+}
+async function syncCloudNow(){
+if(!driveReady||!accessToken||cloudLoading)return;
+if(cloudSyncing){cloudDirty=true;return}
+cloudSyncing=true;
+cloudDirty=false;
+setSyncStatus("数据：同步中…");
+try{
+if(!cloudFileId){let f=await findCloudFile();cloudFileId=f?.id||null}
+if(cloudFileId)await updateCloudFile();else await createCloudFile();
+setSyncStatus("数据：已同步 ✓",true);
+}catch(e){
+console.error(e);
+setSyncStatus("数据：同步失败，请重新连接");
+if(String(e.message||e).includes("过期")){driveReady=false;accessToken=null;cloudFileId=null;setDriveStatus("Google Drive：登录已过期，请重新连接")}
+}finally{
+cloudSyncing=false;
+if(cloudDirty){clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>syncCloudNow(),300)}
+}
+}
+async function loadCloudData(){
+cloudLoading=true;
+setSyncStatus("数据：正在读取云端…");
+try{
+let f=await findCloudFile();
+if(f){
+cloudFileId=f.id;
+let d=await downloadCloudFile(f.id);
+if(d&&Array.isArray(d.items)){
+items=d.items;
+items=items.map(x=>({...x,category:x.category==="连衣裙"?"全身":x.category,images:normalizeImages(x),stockMode:normalizeMode(x),colors:normalizeColors(x),sizes:normalizeSizes(x),variants:normalizeVariants(x)}));
+}
+if(d&&Array.isArray(d.sales))sales=d.sales;
+if(d&&Array.isArray(d.cats))cats=d.cats;
+if(d&&d.subcats)subcats=d.subcats;
+if(d&&Array.isArray(d.palette))palette=d.palette;
+saveLocal();
+setSyncStatus("数据：已从云端同步 ✓",true);
+}else{
+await createCloudFile();
+setSyncStatus("数据：已上传到云端 ✓",true);
+}
+}catch(e){
+console.error(e);
+setSyncStatus("数据：读取失败，请检查 Google Drive");
+throw e;
+}finally{cloudLoading=false}
+}
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const money=v=>v!==""&&v!=null&&!isNaN(Number(v))?"€"+Number(v).toFixed(2):"";
+const totalStock=x=>x.stockMode==="size"?(x.sizes||[]).reduce((s,z)=>s+(Number(z.stock)||0),0):x.stockMode==="both"?(x.variants||[]).reduce((s,v)=>s+(Number(v.stock)||0),0):(x.colors||[]).reduce((s,c)=>s+(Number(c.stock)||0),0);
+const colorNames=x=>x.stockMode==="size"?(x.sizes||[]).map(z=>z.name).join("、"):x.stockMode==="both"?(x.variants||[]).map(v=>v.color+" "+v.size).join("、"):(x.colors||[]).map(c=>c.name).join("、");
+const today=()=>new Date().toISOString().slice(0,10);
+function setDriveStatus(text,ok=false){$("driveStatus").textContent=text;$("driveStatus").className="drive-status"+(ok?" drive-ok":"")}
+function initGoogle(){
+if(!window.google||!google.accounts||!google.accounts.oauth2){return}
+if(tokenClient)return;
+tokenClient=google.accounts.oauth2.initTokenClient({
+client_id:CLIENT_ID,
+scope:DRIVE_SCOPE,
+callback:async response=>{
+if(response.error){setDriveStatus("Google Drive：连接失败");setSyncStatus("数据：未同步");return}
+accessToken=response.access_token;
+driveReady=true;
+setDriveStatus("Google Drive：已连接 ✓",true);
+try{
+await loadCloudData();
+await migrateOldImages();
+if(cloudDirty)await syncCloudNow();
+render();
+renderPalette();
+}catch(e){
+console.error(e);
+alert("无法读取云端衣橱数据。\n\n"+(e.message||e));
+}
+}
+})
+}
+
+function googleLogin(){
+if(!tokenClient){return alert("Google 登录组件还没有加载完成，请稍等几秒后再试。")}
+tokenClient.requestAccessToken({prompt:"consent"})
+}
+async function ensureDrive(){if(driveReady&&accessToken){return true}googleLogin();return false}
+async function uploadToDrive(file){
+if(!accessToken){throw new Error("没有 Google Drive 登录权限")}
+let metadata={name:"衣橱_"+Date.now()+"_"+file.name,mimeType:file.type,description:"衣橱管家图片"};
+let form=new FormData();
+form.append("metadata",new Blob([JSON.stringify(metadata)],{type:"application/json"}));
+form.append("file",file);
+let r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType",{method:"POST",headers:{Authorization:"Bearer "+accessToken},body:form});
+if(!r.ok){let t=await r.text();throw new Error(t||"Google Drive 上传失败")}
+return await r.json()
+}
+async function getDriveImage(id){
+if(!id)return null;
+if(imageCache[id]){return imageCache[id]}
+if(!accessToken){return null}
+try{
+let r=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
+if(r.status===401){driveReady=false;accessToken=null;setDriveStatus("Google Drive：登录已过期，请重新连接");return null}
+if(!r.ok)return null;
+let blob=await r.blob();
+let url=URL.createObjectURL(blob);
+imageCache[id]=url;
+return url
+}catch(e){return null}
+}
+async function deleteDriveFile(id){
+if(!id||!accessToken)return;
+try{await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id),{method:"DELETE",headers:{Authorization:"Bearer "+accessToken}})}catch(e){}
+delete imageCache[id]
+}
+async function migrateOldImages(){
+let changed=false;
+for(let x of items){
+let old=[];
+for(let img of x.images||[]){if(typeof img==="string"&&img.startsWith("data:")){old.push(img)}}
+if(!old.length)continue;
+if(!accessToken)continue;
+try{
+let ids=[];
+for(let img of x.images||[]){
+if(typeof img==="string"&&img.startsWith("data:")){
+let blob=await fetch(img).then(r=>r.blob());
+let file=new File([blob],"衣橱_"+x.id+"_"+Date.now()+".jpg",{type:blob.type||"image/jpeg"});
+let f=await uploadToDrive(file);
+ids.push(f.id)
+}else if(img){ids.push(img)}
+}
+x.images=ids;
+changed=true
+}catch(e){console.error("旧图片迁移失败",e)}
+}
+if(changed)save()
+}
+function renderPalette(){
+let box=$("myPalette");
+if(!box)return;
+if(!palette.length){box.innerHTML=`<div class="palette-empty">还没有保存颜色。点击「管理调色板」添加你的颜色。</div>`;return}
+box.innerHTML=palette.map((p,i)=>`
+<div class="palette-item">
+<div class="palette-color" style="background:${esc(p.hex)}" title="${esc(p.name)} ${esc(p.hex)}" onclick="copyPaletteColor(${i})"></div>
+<div class="palette-name">${esc(p.name)}</div>
+<button class="palette-remove" onclick="removePaletteColor(event,${i})" title="删除">×</button>
+</div>`).join("")
+}
+function renderPaletteManager(){
+let box=$("paletteManagerList");
+if(!box)return;
+if(!palette.length){box.innerHTML=`<div class="palette-empty">还没有自定义颜色。</div>`;return}
+box.innerHTML=palette.map((p,i)=>`
+<div class="palette-manager-row">
+<div class="palette-manager-swatch" style="background:${esc(p.hex)}"></div>
+<div class="palette-manager-info">
+<div class="palette-manager-name">${esc(p.name)}</div>
+<div class="palette-manager-hex">${esc(p.hex.toUpperCase())}</div>
+</div>
+<button class="iconbtn" onclick="editPaletteColor(${i})">编辑</button>
+<button class="color-delete" onclick="removePaletteColor(event,${i})">×</button>
+</div>`).join("")
+}
+function openPaletteManager(){renderPaletteManager();$("paletteModal").classList.add("show")}
+function closePaletteManager(){$("paletteModal").classList.remove("show")}
+function addPaletteColor(){
+let hex=$("paletteNewColor").value;
+let name=$("paletteNewName").value.trim();
+if(!name){return alert("请输入颜色名称")}
+if(palette.some(p=>p.hex.toLowerCase()===hex.toLowerCase())){return alert("这个颜色已经在调色板中")}
+palette.push({name,hex});
+savePalette();
+$("paletteNewName").value="";
+renderPaletteManager();
+renderPalette()
+}
+function editPaletteColor(index){
+let p=palette[index];
+if(!p)return;
+let name=prompt("修改颜色名称：",p.name);
+if(name===null)return;
+name=name.trim();
+if(!name){return alert("颜色名称不能为空")}
+let hex=prompt("修改颜色色值，例如 #D8C3A5：",p.hex);
+if(hex===null)return;
+hex=hex.trim();
+if(!/^#[0-9a-fA-F]{6}$/.test(hex)){return alert("请输入正确的 6 位颜色色值")}
+palette[index]={name,hex};
+savePalette();
+renderPaletteManager();
+renderPalette()
+}
+function removePaletteColor(e,index){
+if(e)e.stopPropagation();
+let p=palette[index];
+if(!p)return;
+if(!confirm(`确定删除调色板中的「${p.name}」吗？`)){return}
+palette.splice(index,1);
+savePalette();
+renderPaletteManager();
+renderPalette()
+}
+function copyPaletteColor(index){
+let p=palette[index];
+if(!p)return;
+if($("newColorPicker")&&$("newColorName")){$("newColorPicker").value=p.hex;$("newColorName").value=p.name;return}
+if(navigator.clipboard){navigator.clipboard.writeText(p.hex).then(()=>{alert(`已选择「${p.name}」\n${p.hex}`)}).catch(()=>{alert(`${p.name}\n${p.hex}`)})}
+else{alert(`${p.name}\n${p.hex}`)}
+}
+function render(){
+let q=($("search").value||"").toLowerCase();
+let f=$("filter").value;
+let sf=$("subFilter").value;
+let list=items.filter(x=>
+(!f||x.category===f)&&
+(!sf||x.subCategory===sf)&&
+(!q||(x.name+x.code+x.brand+colorNames(x)).toLowerCase().includes(q))
+);
+$("grid").innerHTML=list.length?list.map(card).join(""):`
+<div class="empty">还没有找到衣服<br><button class="primary" style="margin-top:15px" onclick="openAdd()">添加第一件衣服</button></div>`;
+updateStats();
+renderCats();
+renderAnalytics();
+loadCardImages()
+}
+function card(x){
+let stock=totalStock(x);
+let im=x.images?.[0];
+let src="";
+if(im){if(String(im).startsWith("data:")){src=im}else if(imageCache[im]){src=imageCache[im]}}
+return`
+<div class="item" onclick="detail(${x.id})">
+<div class="photo">
+${src?`<img src="${src}">`:`<div class="emoji">${x.emoji||icons[x.category]||"👚"}</div>`}
+</div>
+<div class="info">
+<div class="name">${esc(x.name)}</div>
+${x.code?`<div class="code-text">编码：${esc(x.code)}</div>`:""}
+<div class="meta">${esc(x.category)}${x.subCategory?" · "+esc(x.subCategory):""}</div>
+<div class="meta">${x.stockMode==="color"?(x.colors||[]).length+" 个颜色":x.stockMode==="size"?(x.sizes||[]).length+" 个号码":(x.variants||[]).length+" 个规格"} · ${stock} 件库存${x.images?.length>1?" · "+x.images.length+" 张图片":""}</div>
+${x.retailPrice?`<div class="retail-price">零售价 ${money(x.retailPrice)}</div>`:""}
+</div>
+</div>`
+}
+async function loadCardImages(){
+if(!accessToken)return;
+let imgs=[...new Set(items.map(x=>x.images?.[0]).filter(x=>x&&!String(x).startsWith("data:")))];
+for(let id of imgs){if(!imageCache[id]){await getDriveImage(id)}}
+document.querySelectorAll(".item").forEach((el,i)=>{
+let x=items.filter(x=>{
+let q=($("search").value||"").toLowerCase();
+let f=$("filter").value;
+let sf=$("subFilter").value;
+return((!f||x.category===f)&&(!sf||x.subCategory===sf)&&(!q||(x.name+x.code+x.brand+colorNames(x)).toLowerCase().includes(q)))
+})[i];
+let id=x?.images?.[0];
+let src=imageCache[id];
+if(src){let p=el.querySelector(".photo");if(p){p.innerHTML=`<img src="${src}">`}}
+})
+}
+function updateStats(){
+let n=items.reduce((s,x)=>s+totalStock(x),0);
+let top=items.filter(x=>x.category==="上衣").reduce((s,x)=>s+totalStock(x),0);
+let bot=items.filter(x=>x.category==="下装").reduce((s,x)=>s+totalStock(x),0);
+$("sTotal").textContent=n;
+$("sTop").textContent=top;
+$("sBottom").textContent=bot;
+$("sOther").textContent=n-top-bot
+}
+function renderCats(){
+$("catList").innerHTML=cats.map(c=>{
+let total=items.filter(x=>x.category===c).reduce((s,x)=>s+totalStock(x),0);
+let children=(subcats[c]||[]).map(sc=>{
+let n=items.filter(x=>x.category===c&&x.subCategory===sc).reduce((s,x)=>s+totalStock(x),0);
+return`
+<div class="sub-item">
+<button class="sub-main" onclick="filterCategory(event,'${esc(c)}','${esc(sc)}')">${esc(sc)} ${n}</button>
+<button class="sub-delete" onclick="deleteSubCategory(event,'${esc(c)}','${esc(sc)}')">×</button>
+</div>`
+}).join("");
+return`
+<div class="cat">
+<div class="category-head">
+<span class="ico">${icons[c]||"◉"}</span>
+<span class="category-name">${esc(c)}</span>
+<span class="category-count">${total} 件</span>
+<button class="iconbtn" onclick="addSubCategory(event,'${esc(c)}')">＋ 小分类</button>
+<button class="iconbtn" onclick="deleteCategory(event,'${esc(c)}')">删除</button>
+</div>
+<div class="sub-list">${children||`<span class="no-sub">暂无小分类</span>`}</div>
+</div>`
+}).join("")
+}
+function addCategory(){
+let c=prompt("请输入新的大分类名称：")?.trim();
+if(!c)return;
+if(cats.includes(c)){return alert("这个大分类已经存在")}
+cats.push(c);
+subcats[c]=["其他"];
+saveCategories();
+updateCategorySelects();
+render()
+}
+const themeKey="wardrobe_theme_v1";
+function applyTheme(){
+const dark=localStorage.getItem(themeKey)==="dark";
+document.body.classList.toggle("dark",dark);
+const btn=$("themeBtn");
+if(btn){btn.textContent=dark?"☀️ 浅色模式":"🌙 深色模式"}
+}
+function toggleTheme(){
+const dark=document.body.classList.toggle("dark");
+localStorage.setItem(themeKey,dark?"dark":"light");
+const btn=$("themeBtn");
+if(btn){btn.textContent=dark?"☀️ 浅色模式":"🌙 深色模式"}
+}
+applyTheme();
+function addSubCategory(e,c){
+e.stopPropagation();
+let sc=prompt(`给「${c}」添加一个小分类：`)?.trim();
+if(!sc)return;
+subcats[c]??=[];
+if(subcats[c].includes(sc)){return alert("这个小分类已经存在")}
+subcats[c].push(sc);
+saveCategories();
+updateCategorySelects();
+render()
+}
+function deleteSubCategory(e,c,sc){
+e.stopPropagation();
+let n=items.filter(x=>x.category===c&&x.subCategory===sc).length;
+if(!confirm(`确定删除小分类「${sc}」吗？`+(n?`\n\n${n} 个款式会移动到“其他”。`:""))){return}
+items=items.map(x=>x.category===c&&x.subCategory===sc?{...x,subCategory:"其他"}:x);
+subcats[c]=(subcats[c]||[]).filter(x=>x!==sc);
+if(!subcats[c].includes("其他")){subcats[c].push("其他")}
+saveCategories();
+save();
+updateCategorySelects();
+render()
+}
+function deleteCategory(e,c){
+e.stopPropagation();
+if(cats.length<=1){return alert("至少需要保留一个大分类")}
+let n=items.filter(x=>x.category===c).length;
+if(!confirm(`确定删除大分类「${c}」吗？`+(n?`\n\n${n} 个款式会移动到“其他”。`:""))){return}
+items=items.map(x=>x.category===c?{...x,category:"其他",subCategory:"其他"}:x);
+cats=cats.filter(x=>x!==c);
+delete subcats[c];
+saveCategories();
+save();
+updateCategorySelects();
+render()
+}
+function filterCategory(e,c,sc){
+e.stopPropagation();
+$("filter").value=c;
+updateSubFilter();
+$("subFilter").value=sc;
+showPage("home");
+render()
+}
+function updateCategorySelects(){
+let c=$("category");
+let f=$("filter");
+let cv=c?.value;
+let fv=f?.value;
+if(c){
+c.innerHTML=cats.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");
+if(cats.includes(cv)){c.value=cv}
+}
+if(f){
+f.innerHTML=`<option value="">全部大分类</option>`+cats.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");
+if(cats.includes(fv)){f.value=fv}
+}
+updateSubcategory();
+updateSubFilter()
+}
+function updateSubFilter(){
+let main=$("filter").value;
+let old=$("subFilter").value;
+$("subFilter").innerHTML=`<option value="">全部小分类</option>`+(main?(subcats[main]||[]).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join(""):"");
+if((subcats[main]||[]).includes(old)){$("subFilter").value=old}
+}
+function updateSubcategory(selected=""){
+let main=$("category").value;
+let el=$("subcategory");
+el.innerHTML=(subcats[main]||[]).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");
+if(selected&&[...el.options].some(o=>o.value===selected)){el.value=selected}
+}
+function renderAnalytics(){
+let purchase=items.reduce((s,x)=>s+(Number(x.price)||0)*totalStock(x),0);
+let retail=items.reduce((s,x)=>s+(Number(x.retailPrice)||0)*totalStock(x),0);
+let profit=retail-purchase;
+let stock=items.reduce((s,x)=>s+totalStock(x),0);
+let avg=stock?purchase/stock:0;
+$("summary").innerHTML=`
+<div class="stats" style="grid-template-columns:repeat(2,1fr);margin:0">
+<div class="stat"><small>库存总件数</small><b>${stock}</b></div>
+<div class="stat"><small>款式数量</small><b>${items.length}</b></div>
+<div class="stat"><small>购买总成本</small><b>€${purchase.toFixed(2)}</b></div>
+<div class="stat"><small>零售总价值</small><b>€${retail.toFixed(2)}</b></div>
+<div class="stat"><small>平均购买价</small><b>€${avg.toFixed(2)}</b></div>
+<div class="stat"><small>预计毛利</small><b style="color:var(--green)">€${profit.toFixed(2)}</b></div>
+</div>`;
+let max=Math.max(1,...cats.map(c=>items.filter(x=>x.category===c).reduce((s,x)=>s+totalStock(x),0)));
+$("bars").innerHTML=cats.map(c=>{
+let n=items.filter(x=>x.category===c).reduce((s,x)=>s+totalStock(x),0);
+return`
+<div class="barwrap">
+<b>${n}</b>
+<div class="bar" style="height:${Math.max(4,n/max*145)}px"></div>
+<div class="barlabel">${esc(c)}</div>
+</div>`
+}).join("")
+}
+function showPage(id){
+document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+$(id).classList.add("active");
+document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));
+if(id==="home")render();
+if(id==="categories")renderCats();
+if(id==="stats")renderAnalytics();
+if(id==="sales")renderSales();
+if(id==="about")renderPalette()
+}
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>showPage(b.dataset.page));
+function openAdd(){
+$("form").reset();
+$("editId").value="";
+uploadedFiles=[];
+uploadedPreviews=[];
+updateCategorySelects();
+$("modalTitle").textContent="添加衣服";
+$("preview").innerHTML="点击下面选择照片";
+initEditColorControls(null);
+$("modal").classList.add("show")
+}
+function closeModal(){$("modal").classList.remove("show")}
+function previewPhotos(e){
+let files=[...e.target.files];
+if(!files.length)return;
+uploadedFiles=files;
+uploadedPreviews=[];
+$("preview").innerHTML="";
+files.forEach(f=>{
+let r=new FileReader();
+r.onload=()=>{
+$("preview").innerHTML+=`<img src="${r.result}">`;
+uploadedPreviews.push(r.result)
+};
+r.readAsDataURL(f)
+})
+}
+function normalizeHex(value){
+let hex=String(value||"").trim();
+if(!hex.startsWith("#"))hex="#"+hex;
+if(/^#[0-9a-fA-F]{3}$/.test(hex)){hex="#"+
+hex[1]+hex[1]+
+hex[2]+hex[2]+
+hex[3]+hex[3]}
+return /^#[0-9a-fA-F]{6}$/.test(hex)?hex.toUpperCase():"#D8C3A5"
+}
+function initEditColorControls(x){
+let c=x?.colors?.[0]||{name:"",hex:"#d8c3a5"};
+$("editColorPicker").value=normalizeHex(c.hex);
+$("editColorHex").value=normalizeHex(c.hex);
+$("editColorName").value=c.name==="其他"?"":(c.name||"");
+let select=$("editColorPalette");
+if(select){select.innerHTML=`<option value="">选择我的调色板颜色</option>`+palette.map((p,i)=>`<option value="${i}">${esc(p.name)} · ${esc(p.hex.toUpperCase())}</option>`).join("")}
+}
+function syncEditColorFromPicker(){
+let hex=normalizeHex($("editColorPicker").value);
+$("editColorPicker").value=hex;
+$("editColorHex").value=hex
+}
+function syncEditColorFromHex(){
+let input=$("editColorHex");
+let raw=input.value.trim();
+if(/^#?[0-9a-fA-F]{6}$/.test(raw)){let hex=normalizeHex(raw);$("editColorPicker").value=hex;input.value=hex}
+}
+function applyEditPalette(){
+let select=$("editColorPalette");
+let i=Number(select.value);
+if(select.value===""||!palette[i])return;
+let p=palette[i];
+let hex=normalizeHex(p.hex);
+$("editColorPicker").value=hex;
+$("editColorHex").value=hex;
+$("editColorName").value=p.name
+}
+function saveEditColorToPalette(){
+let hex=normalizeHex($("editColorHex").value);
+let name=$("editColorName").value.trim();
+if(!name){name=prompt("请输入这个颜色的名称：","我的颜色")?.trim()||""}
+if(!name)return;
+if(palette.some(p=>normalizeHex(p.hex).toLowerCase()===hex.toLowerCase())){return alert("这个颜色已经在你的调色板中了。")}
+palette.push({name,hex});
+savePalette();
+initEditColorControls({colors:[{name,hex,stock:1}]});
+alert(`「${name}」已经加入你的调色板。`)
+}
+async function openEditEyedropper(){
+let id=Number($("editId").value);
+if(id){await openEyedropper(id);return}
+if(!uploadedPreviews.length){return alert("请先选择一张衣服照片，再使用吸色功能。")}
+eyedropperItemId=null;
+eyedropperImages=[...uploadedPreviews];
+eyedropperImageUrls=[];
+eyedropperCurrentIndex=0;
+$("eyedropperModal").classList.add("show");
+await loadEyedropperImages()
+}
+$("form").onsubmit=async e=>{
+e.preventDefault();
+let id=Number($("editId").value);
+let old=id?items.find(x=>x.id===id):null;
+let data={
+id:id||Date.now(),
+name:$("name").value.trim(),
+code:$("code").value.trim(),
+category:$("category").value,
+subCategory:$("subcategory").value,
+brand:$("brand").value.trim(),
+price:$("price").value,
+retailPrice:$("retailPrice").value,
+date:$("date").value,
+location:$("location").value.trim(),
+note:$("note").value.trim(),
+images:old?.images||[],
+stockMode:old?.stockMode||"color",
+colors:old?.colors?.length?old.colors:[{name:"其他",hex:"#d8c3a5",stock:1}],
+sizes:old?.sizes||[],
+variants:old?.variants||[]
+};
+let editColorName=$("editColorName").value.trim();
+let editColorHex=normalizeHex($("editColorHex").value);
+if(editColorName){
+if(data.colors?.length){data.colors[0].name=editColorName;data.colors[0].hex=editColorHex}
+else{data.colors=[{name:editColorName,hex:editColorHex,stock:1}]}
+}
+let btn=$("saveBtn");
+btn.disabled=true;
+btn.textContent="保存中...";
+try{
+if(uploadedFiles.length){
+if(!driveReady){
+if(!tokenClient){alert("Google 登录组件还没有加载完成");return}
+tokenClient.requestAccessToken({prompt:"consent"});
+alert("请先连接 Google Drive，然后再次保存。");
+return
+}
+let ids=[];
+for(let file of uploadedFiles){
+let f=await uploadToDrive(file);
+ids.push(f.id)
+}
+if(id&&old?.images){
+for(let oldId of old.images){
+if(oldId&&!String(oldId).startsWith("data:")){await deleteDriveFile(oldId)}
+}
+}
+data.images=ids
+}else if(id&&old?.images){data.images=[...old.images]}
+if(id){
+let i=items.findIndex(x=>x.id===id);
+if(i>=0){items[i]=data}
+}else{items.unshift(data)}
+save();
+closeModal();
+showPage("home")
+}catch(err){
+console.error(err);
+alert("图片上传失败，请确认 Google Drive 已连接。\n\n"+err.message)
+}finally{
+btn.disabled=false;
+btn.textContent="保存衣服"
+}
+};
+async function detail(id){
+let x=items.find(i=>i.id===id);
+if(!x)return;
+let purchase=Number(x.price)||0;
+let retail=Number(x.retailPrice)||0;
+let profit=retail-purchase;
+let imgs=x.images||[];
+let photos=imgs.length?`
+<div class="photo-track" id="photoTrack">
+${imgs.map((i,n)=>`
+<div class="detail-slide">
+<div class="emoji" id="photoLoading${n}">
+${String(i).startsWith("data:")?`<img src="${i}">`:"⌛"}
+</div>
+</div>`).join("")}
+</div>
+${imgs.length>1?`
+<button class="photo-arrow photo-prev" onclick="slidePhoto(-1)">‹</button>
+<button class="photo-arrow photo-next" onclick="slidePhoto(1)">›</button>
+<div class="photo-count" id="photoCount">1 / ${imgs.length}</div>`:""}
+`:`
+<div class="detail-slide">
+<div class="emoji">${x.emoji||icons[x.category]||"👚"}</div>
+</div>`;
+$("detailContent").innerHTML=`
+<div class="detail">
+<div class="detailphoto">${photos}</div>
+<div class="detailcard">
+<h2>${esc(x.name)}</h2>
+<div class="rows">
+${row("编码",x.code||"—")}
+${row("分类",(x.category||"—")+" · "+(x.subCategory||"—"))}
+${row("购买时间",x.date)}
+${row("购买价格",x.price?money(x.price):"—")}
+${row("零售价格",x.retailPrice?money(x.retailPrice):"—")}
+${x.price&&x.retailPrice?row("单件预计毛利",money(profit),"profit-row"):""}
+${row("品牌",x.brand||"—")}
+${row("所在位置",x.location||"—")}
+${row("备注",x.note||"—")}
+</div>
+<div class="actions" style="margin-top:22px">
+<button class="iconbtn" onclick="deleteItem(${x.id})">删除款式</button>
+<button class="iconbtn" onclick="openSale(${x.id})">💰 卖掉</button>
+<button class="primary" onclick="editItem(${x.id})">编辑款式资料</button>
+</div>
+</div>
+<div class="detail-colors">
+<div class="colors-head">
+<div><h3>规格与库存</h3><div class="hint">可以只管理颜色、只管理号码，或者颜色＋号码一起管理。</div></div>
+<select id="stockMode" data-id="${x.id}" onchange="changeStockMode(${x.id},this.value)">
+<option value="color" ${x.stockMode==="color"?"selected":""}>只管理颜色</option>
+<option value="size" ${x.stockMode==="size"?"selected":""}>只管理号码</option>
+<option value="both" ${x.stockMode==="both"?"selected":""}>颜色＋号码</option>
+</select>
+<button class="primary" onclick="toggleColorForm()">＋ 添加</button>
+</div>
+<div id="colorList" class="color-list">${renderSpecRows(x.id)}</div>
+<div id="addSpecBox" class="add-color-box"><div id="specForm"></div></div>
+</div>
+</div>`;
+showPage("detail");
+let t=$("photoTrack");
+if(t){t.onscroll=()=>{let n=Math.round(t.scrollLeft/t.clientWidth)+1;$("photoCount").textContent=n+" / "+imgs.length}}
+loadDetailImages(imgs)
+}
+async function loadDetailImages(imgs){
+if(!accessToken)return;
+for(let i=0;i<imgs.length;i++){
+let id=imgs[i];
+if(String(id).startsWith("data:")){continue}
+let src=await getDriveImage(id);
+if(!src)continue;
+let box=$("photoLoading"+i);
+if(box){box.innerHTML=`<img src="${src}">`}
+}
+}
+function slidePhoto(dir){
+let t=$("photoTrack");
+if(!t)return;
+let n=Math.round(t.scrollLeft/t.clientWidth);
+let max=t.children.length-1;
+n=Math.max(0,Math.min(max,n+dir));
+t.scrollTo({left:n*t.clientWidth,behavior:"smooth"})
+}
+function renderSpecRows(id){
+let x=items.find(i=>i.id===id);
+if(!x)return"";
+if(x.stockMode==="size"){
+return(x.sizes||[]).map((z,i)=>`
+<div class="color-row">
+<div class="color-info"><span class="spec-tag">${esc(z.name)}</span></div>
+<div class="stock-control"><span style="font-size:12px;color:var(--muted)">库存</span><input type="number" min="0" step="1" value="${Number(z.stock)||0}" onchange="changeSizeStock(${id},${i},this.value)"></div>
+<button class="iconbtn spec-edit" onclick="editSize(${id},${i})">编辑</button>
+<button class="color-delete" onclick="deleteSize(${id},${i})">×</button>
+</div>`).join("")||`<div class="no-sub">还没有号码。</div>`
+}
+if(x.stockMode==="both"){
+return(x.variants||[]).map((v,i)=>`
+<div class="color-row">
+<div class="variant-color">
+<div class="color-swatch" style="background:${esc(v.hex)}"></div>
+<div class="color-info"><div class="color-name">${esc(v.color)}<span class="spec-size-badge">${esc(v.size)}</span></div></div>
+</div>
+<div class="stock-control"><span style="font-size:12px;color:var(--muted)">库存</span><input type="number" min="0" step="1" value="${Number(v.stock)||0}" onchange="changeVariantStock(${id},${i},this.value)"></div>
+<button class="iconbtn spec-edit" onclick="editVariant(${id},${i})">编辑</button>
+<button class="color-delete" onclick="deleteVariant(${id},${i})">×</button>
+</div>`).join("")||`<div class="no-sub">还没有颜色＋号码组合。</div>`
+}
+return(x.colors||[]).map((c,i)=>`
+<div class="color-row">
+<div class="color-swatch" style="background:${esc(c.hex)}"></div>
+<div class="color-info">
+<div class="color-name">${esc(c.name)}</div>
+<div class="color-hex">${esc(c.hex)}</div>
+</div>
+<div class="stock-control"><span style="font-size:12px;color:var(--muted)">库存</span><input type="number" min="0" step="1" value="${Number(c.stock)||0}" onchange="changeStock(${id},${i},this.value)"></div>
+<button class="iconbtn spec-edit" onclick="editColor(${id},${i})">编辑</button>
+<button class="color-delete" onclick="deleteColor(${id},${i})">×</button>
+</div>`).join("")||`<div class="no-sub">还没有颜色。</div>`
+}
+function toggleColorForm(){
+let mode=$("stockMode")?.value||"color";
+let box=$("addSpecBox");
+if(!box)return;
+box.classList.toggle("show");
+if(!box.classList.contains("show")){return}
+let id=Number($("stockMode").dataset.id);
+if(mode==="color"){
+$("specForm").innerHTML=`
+<div class="color-form">
+<input id="newColorPicker" type="color" value="#d8c3a5">
+<input id="newColorName" placeholder="颜色名称，例如：奶油白">
+<input id="newColorStock" type="number" min="0" step="1" value="1" placeholder="库存">
+<button class="primary" onclick="addColor(${id})">保存颜色</button>
+</div>
+<div class="palette-select-row">
+<span style="font-size:12px;color:var(--muted);white-space:nowrap">调色板</span>
+<select id="palettePicker" onchange="applyPaletteToNewColor()">
+<option value="">选择我的颜色</option>
+${palette.map((p,i)=>`<option value="${i}">${esc(p.name)} · ${esc(p.hex.toUpperCase())}</option>`).join("")}
+</select>
+</div>
+<div class="color-tools">
+<button type="button" class="color-tool-btn" onclick="openEyedropper(${id})">📷 从衣服照片吸色</button>
+<button type="button" class="color-tool-btn" onclick="addCurrentColorToPalette(${id})">＋ 加入我的调色板</button>
+</div>
+<div class="hint">可以直接选择颜色、使用自己的调色板，或者从衣服照片中取色。</div>`
+}else if(mode==="size"){
+$("specForm").innerHTML=`
+<div class="color-form">
+<input style="visibility:hidden" disabled>
+<input id="newSizeName" placeholder="号码，例如：M / 40 / XL">
+<input id="newSizeStock" type="number" min="0" step="1" value="1" placeholder="库存">
+<button class="primary" onclick="addSize(${id})">保存号码</button>
+</div>
+<div class="hint">号码可以是 S、M、L、XL，也可以是 36、38、40 等。</div>`
+}else{
+$("specForm").innerHTML=`
+<div class="spec-fields">
+<input id="newVariantColor" placeholder="颜色，例如：黑色">
+<input id="newVariantSize" placeholder="号码，例如：M">
+<input id="newVariantStock" type="number" min="0" step="1" value="1">
+<button class="primary" onclick="addVariant(${id})">保存组合</button>
+</div>
+<div class="hint">例如：黑色＋M、白色＋L，每个组合都有独立库存。</div>`
+}
+}
+function applyPaletteToNewColor(){
+let picker=$("palettePicker");
+if(!picker)return;
+let index=Number(picker.value);
+if(picker.value===""||!palette[index]){return}
+let p=palette[index];
+$("newColorPicker").value=p.hex;
+$("newColorName").value=p.name
+}
+function addCurrentColorToPalette(id){
+let picker=$("newColorPicker");
+let nameInput=$("newColorName");
+if(!picker||!nameInput)return;
+let hex=picker.value;
+let name=nameInput.value.trim();
+if(!name){name=prompt("请输入这个颜色的名称：","我的颜色")?.trim()}
+if(!name)return;
+if(palette.some(p=>p.hex.toLowerCase()===hex.toLowerCase())){return alert("这个颜色已经在你的调色板中了。")}
+palette.push({name,hex});
+savePalette();
+alert(`「${name}」已经加入你的调色板。`)
+}
+async function openEyedropper(id){
+let x=items.find(i=>i.id===id);
+if(!x)return;
+if(!x.images||!x.images.length){return alert("这件衣服还没有照片，无法从照片吸色。")}
+eyedropperItemId=id;
+eyedropperImages=[...x.images];
+eyedropperImageUrls=[];
+$("eyedropperModal").classList.add("show");
+await loadEyedropperImages()
+}
+async function loadEyedropperImages(){
+let list=$("photoPickerList");
+list.innerHTML="";
+eyedropperImageUrls=[];
+for(let i=0;i<eyedropperImages.length;i++){
+let imgId=eyedropperImages[i];
+let src="";
+if(String(imgId).startsWith("data:")){src=imgId}else{src=await getDriveImage(imgId)}
+if(!src)continue;
+eyedropperImageUrls.push({index:i,src});
+let btn=document.createElement("button");
+btn.className="photo-picker-btn";
+if(i===eyedropperCurrentIndex){btn.classList.add("active")}
+let img=document.createElement("img");
+img.src=src;
+btn.appendChild(img);
+btn.onclick=()=>{
+eyedropperCurrentIndex=i;
+document.querySelectorAll(".photo-picker-btn").forEach(b=>b.classList.remove("active"));
+btn.classList.add("active");
+drawEyedropperImage(src)
+};
+list.appendChild(btn)
+}
+let first=eyedropperImageUrls.find(x=>x.index===eyedropperCurrentIndex)||eyedropperImageUrls[0];
+if(first){eyedropperCurrentIndex=first.index;drawEyedropperImage(first.src)}
+else{alert("无法读取这件衣服的照片，请先连接 Google Drive。")}
+}
+function closeEyedropper(){
+$("eyedropperModal").classList.remove("show");
+eyedropperItemId=null;
+eyedropperImages=[];
+eyedropperImageUrls=[];
+eyedropperCurrentIndex=0
+}
+function drawEyedropperImage(src){
+let canvas=$("eyeCanvas");
+if(!canvas)return;
+let ctx=canvas.getContext("2d",{willReadFrequently:true});
+let img=new Image();
+img.onload=()=>{
+let maxWidth=760;
+let maxHeight=650;
+let scale=Math.min(1,maxWidth/img.naturalWidth,maxHeight/img.naturalHeight);
+canvas.width=Math.round(img.naturalWidth*scale);
+canvas.height=Math.round(img.naturalHeight*scale);
+ctx.drawImage(img,0,0,canvas.width,canvas.height)
+};
+img.src=src;
+canvas.onclick=e=>{
+let rect=canvas.getBoundingClientRect();
+let scaleX=canvas.width/rect.width;
+let scaleY=canvas.height/rect.height;
+let x=Math.floor((e.clientX-rect.left)*scaleX);
+let y=Math.floor((e.clientY-rect.top)*scaleY);
+let data=ctx.getImageData(x,y,1,1).data;
+let hex=rgbToHex(data[0],data[1],data[2]);
+setSampledColor(hex)
+}
+}
+function rgbToHex(r,g,b){return"#"+[r,g,b].map(x=>x.toString(16).padStart(2,"0")).join("").toUpperCase()}
+function setSampledColor(hex){
+sampledHex=hex;
+$("sampleColor").style.background=hex;
+$("sampleHex").textContent=hex;
+if(!$("sampleName").value.trim()){$("sampleName").value="取色 "+hex}
+}
+function useSampledColor(){
+let hex=sampledHex;
+let name=$("sampleName").value.trim()||"取色 "+hex;
+closeEyedropper();
+if($("editColorPicker")&&$("editColorName")){$("editColorPicker").value=hex;$("editColorHex").value=hex;$("editColorName").value=name;closeEyedropper();return}
+if($("newColorPicker")&&$("newColorName")){$("newColorPicker").value=hex;$("newColorName").value=name;closeEyedropper();return}
+}
+function saveSampleToPalette(){
+let hex=sampledHex;
+let name=$("sampleName").value.trim()||"取色 "+hex;
+if(palette.some(p=>p.hex.toLowerCase()===hex.toLowerCase())){return alert("这个颜色已经在你的调色板中了。")}
+palette.push({name,hex});
+savePalette();
+renderPalette();
+alert(`「${name}」已经加入你的调色板。`)
+}
+function changeStockMode(id,mode){
+let x=items.find(i=>i.id===id);
+if(!x)return;
+let old=x.stockMode||"color";
+if(old===mode)return;
+if(!confirm("切换库存方式后，系统会尽量保留总库存，但如果减少一个维度，原来的细分库存会合并。确定继续吗？")){detail(id);return}
+let total=totalStock(x);
+if(mode==="color"){
+let map={};
+if(old==="both"){(x.variants||[]).forEach(v=>map[v.color]=(map[v.color]||0)+Number(v.stock||0))}
+else if(old==="size"){map["未指定"]=total}
+x.colors=Object.keys(map).length?Object.keys(map).map(n=>({name:n,hex:"#d8c3a5",stock:map[n]})):[{name:"其他",hex:"#d8c3a5",stock:total}]
+}else if(mode==="size"){
+let map={};
+if(old==="both"){(x.variants||[]).forEach(v=>map[v.size]=(map[v.size]||0)+Number(v.stock||0))}
+else if(old==="color"){map["未指定"]=total}
+x.sizes=Object.keys(map).length?Object.keys(map).map(n=>({name:n,stock:map[n]})):[{name:"未指定",stock:total}]
+}else{
+if(old==="color"){x.variants=(x.colors||[]).map(c=>({color:c.name,hex:c.hex||"#d8c3a5",size:"未指定",stock:Number(c.stock)||0}))}
+else if(old==="size"){x.variants=(x.sizes||[]).map(z=>({color:"未指定",hex:"#d8c3a5",size:z.name,stock:Number(z.stock)||0}))}
+}
+x.stockMode=mode;
+save();
+detail(id)
+}
+function editColor(id,index){
+let x=items.find(i=>i.id===id);
+let c=x?.colors?.[index];
+if(!c)return;
+let name=prompt("修改颜色名称：",c.name);
+if(name===null)return;
+name=name.trim();
+if(!name){return alert("颜色名称不能为空")}
+if(x.colors.some((v,i)=>i!==index&&v.name===name)){return alert("这个颜色已经存在")}
+let hex=prompt("修改颜色色值（例如 #d8c3a5）：",c.hex||"#d8c3a5");
+if(hex===null)return;
+hex=hex.trim()||"#d8c3a5";
+if(!/^#[0-9a-fA-F]{6}$/.test(hex)){return alert("请输入正确的 6 位颜色色值，例如 #d8c3a5")}
+c.name=name;c.hex=hex;
+save();
+detail(id)
+}
+function editSize(id,index){
+let x=items.find(i=>i.id===id);
+let z=x?.sizes?.[index];
+if(!z)return;
+let name=prompt("修改号码：",z.name);
+if(name===null)return;
+name=name.trim();
+if(!name){return alert("号码不能为空")}
+if(x.sizes.some((v,i)=>i!==index&&v.name===name)){return alert("这个号码已经存在")}
+z.name=name;
+save();
+detail(id)
+}
+function editVariant(id,index){
+let x=items.find(i=>i.id===id);
+let v=x?.variants?.[index];
+if(!v)return;
+let color=prompt("修改颜色名称：",v.color);
+if(color===null)return;
+color=color.trim();
+if(!color){return alert("颜色不能为空")}
+let size=prompt("修改号码：",v.size);
+if(size===null)return;
+size=size.trim();
+if(!size){return alert("号码不能为空")}
+if(x.variants.some((q,i)=>i!==index&&q.color===color&&q.size===size)){return alert("这个颜色＋号码组合已经存在")}
+let hex=prompt("修改颜色色值（例如 #d8c3a5）：",v.hex||"#d8c3a5");
+if(hex===null)return;
+hex=hex.trim()||"#d8c3a5";
+if(!/^#[0-9a-fA-F]{6}$/.test(hex)){return alert("请输入正确的 6 位颜色色值，例如 #d8c3a5")}
+v.color=color;v.size=size;v.hex=hex;
+save();
+detail(id)
+}
+function addColor(id){
+let x=items.find(i=>i.id===id);
+if(!x)return;
+let name=$("newColorName").value.trim();
+let hex=$("newColorPicker").value;
+let stock=Math.max(0,Number($("newColorStock").value)||0);
+if(!name){return alert("请输入颜色名称")}
+if(x.colors.some(c=>c.name===name)){return alert("这个颜色已经存在")}
+x.colors.push({name,hex,stock});
+save();
+detail(id)
+}
+function changeStock(id,index,value){
+let x=items.find(i=>i.id===id);
+if(!x||!x.colors[index]){return}
+x.colors[index].stock=Math.max(0,Number(value)||0);
+save();
+render();
+detail(id)
+}
+function deleteColor(id,index){
+let x=items.find(i=>i.id===id);
+if(!x||!x.colors[index]){return}
+if(x.colors.length<=1){return alert("至少需要保留一个颜色。")}
+if(!confirm(`确定删除颜色「${x.colors[index].name}」吗？`)){return}
+x.colors.splice(index,1);
+save();
+detail(id)
+}
+function addSize(id){
+let x=items.find(i=>i.id===id);
+if(!x)return;
+let name=$("newSizeName").value.trim();
+let stock=Math.max(0,Number($("newSizeStock").value)||0);
+if(!name){return alert("请输入号码")}
+if(x.sizes.some(z=>z.name===name)){return alert("这个号码已经存在")}
+x.sizes.push({name,stock});
+save();
+detail(id)
+}
+function changeSizeStock(id,index,value){
+let x=items.find(i=>i.id===id);
+if(!x||!x.sizes[index]){return}
+x.sizes[index].stock=Math.max(0,Number(value)||0);
+save();
+render();
+detail(id)
+}
+function deleteSize(id,index){
+let x=items.find(i=>i.id===id);
+if(!x||!x.sizes[index]){return}
+if(x.sizes.length<=1){return alert("至少需要保留一个号码。")}
+if(!confirm(`确定删除号码「${x.sizes[index].name}」吗？`)){return}
+x.sizes.splice(index,1);
+save();
+detail(id)
+}
+function addVariant(id){
+let x=items.find(i=>i.id===id);
+if(!x)return;
+let color=$("newVariantColor").value.trim();
+let size=$("newVariantSize").value.trim();
+let stock=Math.max(0,Number($("newVariantStock").value)||0);
+if(!color||!size){return alert("请输入颜色和号码")}
+if(x.variants.some(v=>v.color===color&&v.size===size)){return alert("这个颜色＋号码组合已经存在")}
+x.variants.push({color,hex:"#d8c3a5",size,stock});
+save();
+detail(id)
+}
+function changeVariantStock(id,index,value){
+let x=items.find(i=>i.id===id);
+if(!x||!x.variants[index]){return}
+x.variants[index].stock=Math.max(0,Number(value)||0);
+save();
+render();
+detail(id)
+}
+function deleteVariant(id,index){
+let x=items.find(i=>i.id===id);
+if(!x||!x.variants[index]){return}
+if(x.variants.length<=1){return alert("至少需要保留一个规格。")}
+if(!confirm(`确定删除「${x.variants[index].color} · ${x.variants[index].size}」吗？`)){return}
+x.variants.splice(index,1);
+save();
+detail(id)
+}
+function row(a,b,cls=""){return`
+<div class="row ${cls}"><span>${esc(a)}</span><span>${esc(String(b||"—"))}</span></div>`}
+async function deleteItem(id){
+let x=items.find(i=>i.id===id);
+if(!x)return;
+if(confirm("确定删除这个款式吗？")){
+if(x.images?.length&&accessToken){
+for(let img of x.images){
+if(img&&!String(img).startsWith("data:")){await deleteDriveFile(img)}
+}
+}
+items=items.filter(x=>x.id!==id);
+save();
+showPage("home")
+}
+}
+function editItem(id){
+let x=items.find(i=>i.id===id);
+if(!x)return;
+$("editId").value=x.id;
+$("modalTitle").textContent="编辑款式资料";
+updateCategorySelects();
+$("name").value=x.name||"";
+$("code").value=x.code||"";
+$("category").value=x.category||cats[0];
+updateSubcategory(x.subCategory||"");
+$("brand").value=x.brand||"";
+$("price").value=x.price||"";
+$("retailPrice").value=x.retailPrice||"";
+$("date").value=x.date||"";
+$("location").value=x.location||"";
+$("note").value=x.note||"";
+initEditColorControls(x);
+uploadedFiles=[];
+uploadedPreviews=[];
+$("preview").innerHTML="";
+if(x.images?.length){
+x.images.forEach((i,n)=>{
+let img=document.createElement("img");
+if(String(i).startsWith("data:")){img.src=i}
+else if(imageCache[i]){img.src=imageCache[i]}
+else{img.alt="Google Drive 图片";getDriveImage(i).then(src=>{if(src){img.src=src}})}
+$("preview").appendChild(img)
+})
+}else{$("preview").innerHTML="没有照片（可重新选择）"}
+$("photo").value="";
+$("modal").classList.add("show")
+}
+async function clearAll(){
+if(!confirm("确定清空全部库存吗？此操作不可恢复？")){return}
+if(accessToken){
+for(let x of items||[]){
+for(let img of x.images||[]){
+if(img&&!String(img).startsWith("data:")){await deleteDriveFile(img)}
+}
+}
+}
+items=[];
+save();
+render()
+}
+function resetCategories(){
+if(!confirm("确定恢复默认分类吗？自定义分类会被删除。")){return}
+cats=[...defaultCats];
+subcats=JSON.parse(JSON.stringify(defaultSubcats));
+items=items.map(x=>cats.includes(x.category)?{...x,subCategory:subcats[x.category]?.includes(x.subCategory)?x.subCategory:"其他"}:{...x,category:"其他",subCategory:"其他"});
+saveCategories();
+save();
+updateCategorySelects();
+render()
+}
+function focusSearch(){showPage("home");$("search").focus()}
+$("modal").onclick=e=>{if(e.target===$("modal")){closeModal()}};
+$("saleModal").onclick=e=>{if(e.target===$("saleModal")){closeSale()}};
+$("paletteModal").onclick=e=>{if(e.target===$("paletteModal")){closePaletteManager()}};
+$("eyedropperModal").onclick=e=>{if(e.target===$("eyedropperModal")){closeEyedropper()}};
+function openSale(id){
+let x=items.find(i=>i.id===id);
+if(!x)return;
+saleTarget=x;
+$("saleItemId").value=id;
+let opts=x.stockMode==="size"?(x.sizes||[]).map((z,i)=>`<option value="${i}">${esc(z.name)}（库存 ${Number(z.stock)||0}）</option>`):x.stockMode==="both"?(x.variants||[]).map((v,i)=>`<option value="${i}">${esc(v.color)} · ${esc(v.size)}（库存 ${Number(v.stock)||0}）</option>`):(x.colors||[]).map((c,i)=>`<option value="${i}">${esc(c.name)}（库存 ${Number(c.stock)||0}）</option>`);
+$("saleVariant").innerHTML=opts;
+$("saleDate").value=today();
+$("salePrice").value=x.retailPrice||"";
+$("saleQty").value=1;
+$("saleInfo").innerHTML=`
+<div class="sale-summary">
+<b>${esc(x.name)}</b>
+<div class="meta">${esc(x.category)} · ${esc(x.subCategory||"")}</div>
+</div>`;
+$("saleModal").classList.add("show");
+updateSaleStock();
+updateSaleTotal()
+}
+function closeSale(){
+saleTarget=null;
+$("saleModal").classList.remove("show")
+}
+function updateSaleStock(){
+if(!saleTarget)return;
+let i=Number($("saleVariant").value);
+let c=saleTarget.stockMode==="size"?saleTarget.sizes[i]:saleTarget.stockMode==="both"?saleTarget.variants[i]:saleTarget.colors[i];
+$("saleAvailable").value=Number(c?.stock)||0;
+let q=Number($("saleQty").value)||1;
+if(q>(Number(c?.stock)||0)){$("saleQty").value=Math.max(1,Number(c?.stock)||1)}
+updateSaleTotal()
+}
+function updateSaleTotal(){
+let p=Number($("salePrice").value)||0;
+let q=Number($("saleQty").value)||0;
+$("saleTotal").textContent=money(p*q)
+}
+$("saleForm").onsubmit=e=>{
+e.preventDefault();
+let id=Number($("saleItemId").value);
+let x=items.find(i=>i.id===id);
+let ci=Number($("saleVariant").value);
+let c=x?.stockMode==="size"?x.sizes?.[ci]:x?.stockMode==="both"?x.variants?.[ci]:x?.colors?.[ci];
+let q=Math.floor(Number($("saleQty").value)||0);
+let p=Number($("salePrice").value)||0;
+let d=$("saleDate").value;
+if(!x||!c){return alert("销售商品不存在")}
+if(!d){return alert("请选择销售日期")}
+if(q<1){return alert("卖出数量必须大于0")}
+if(q>Number(c.stock)){return alert("库存不足，无法卖出")}
+if(p<0){return alert("销售价格不能小于0")}
+c.stock-=q;
+let saleColor=x.stockMode==="size"?"":x.stockMode==="both"?c.color:c.name;
+let saleSize=x.stockMode==="size"?c.name:x.stockMode==="both"?c.size:"";
+sales.unshift({
+id:Date.now(),
+itemId:id,
+itemName:x.name,
+code:x.code||"",
+stockMode:x.stockMode,
+color:saleColor,
+colorHex:c.hex||"#d8c3a5",
+size:saleSize,
+qty:q,
+price:p,
+total:q*p,
+date:d,
+time:new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"}),
+created:Date.now()
+});
+save();
+saveSales();
+closeSale();
+detail(id);
+alert(`已成功卖出 ${q} 件，库存已减少`)
+};
+function renderSales(){
+let d=$("salesDate").value||today();
+$("salesDate").value=d;
+let list=sales.filter(s=>s.date===d);
+let total=list.reduce((a,s)=>a+(Number(s.total)||0),0);
+let qty=list.reduce((a,s)=>a+(Number(s.qty)||0),0);
+$("salesSummary").innerHTML=`
+<div class="stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px">
+<div class="stat"><small>订单数</small><b>${list.length}</b></div>
+<div class="stat"><small>销售件数</small><b>${qty}</b></div>
+<div class="stat"><small>营业额</small><b style="color:var(--brown)">€${total.toFixed(2)}</b></div>
+</div>`;
+$("salesList").innerHTML=list.length?list.map(s=>`
+<div class="sale-card">
+<div class="sale-main">
+<div class="sale-name">${esc(s.itemName)}</div>
+<div class="sale-meta">${s.stockMode==="size"?esc(s.size):s.stockMode==="both"?esc(s.color)+" · "+esc(s.size):esc(s.color)} · ${s.qty} 件 · ${s.time||""}${s.code?" · "+esc(s.code):""}</div>
+</div>
+<div class="sale-money">€${Number(s.total||0).toFixed(2)}</div>
+<button class="iconbtn" onclick="undoSale(${s.id})">撤销</button>
+</div>`).join(""):`<div class="sale-empty">这一天没有销售记录</div>`
+}
+function setSalesDate(offset){
+let d=new Date();
+d.setDate(d.getDate()+offset);
+$("salesDate").value=d.toISOString().slice(0,10);
+renderSales()
+}
+function undoSale(id){
+let s=sales.find(x=>x.id===id);
+if(!s)return;
+if(!confirm(`确定撤销这笔销售吗？\n${s.itemName} · ${s.stockMode==="size"?s.size:s.stockMode==="both"?s.color+" · "+s.size:s.color} · ${s.qty}件 · €${Number(s.total).toFixed(2)}\n撤销后库存会恢复。`)){return}
+let x=items.find(i=>i.id===s.itemId);
+if(x){
+let c=x.stockMode==="size"?x.sizes.find(z=>z.name===s.size):x.stockMode==="both"?x.variants.find(v=>v.color===s.color&&v.size===s.size):x.colors.find(z=>z.name===s.color);
+if(c){c.stock+=Number(s.qty)||0}
+else if(x.stockMode==="size"){x.sizes.push({name:s.size||"未指定",stock:Number(s.qty)||0})}
+else if(x.stockMode==="both"){x.variants.push({color:s.color||"未指定",hex:s.colorHex||"#d8c3a5",size:s.size||"未指定",stock:Number(s.qty)||0})}
+else{x.colors.push({name:s.color||"未指定",hex:s.colorHex||"#d8c3a5",stock:Number(s.qty)||0})}
+save()
+}
+sales=sales.filter(x=>x.id!==id);
+saveSales();
+renderSales();
+render()
+}
+updateCategorySelects();
+$("salesDate").value=today();
+render();
+renderPalette();
+if(window.google&&google.accounts&&google.accounts.oauth2){initGoogle()}
+window.addEventListener("load",()=>{
+setTimeout(()=>{
+if(window.google&&google.accounts&&google.accounts.oauth2){initGoogle()}
+},500)
+});
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="initGoogle()"></script>
+</body>
+</html>
