@@ -312,6 +312,7 @@ body.dark input::placeholder,body.dark textarea::placeholder{color:#8f8881}
 </div>
 <div class="field"><label>名称</label><input id="name" required placeholder="例如：米色风衣"></div>
 <div class="field"><label>编码</label><input id="code" placeholder="例如：DR-2026-001"></div>
+<div class="field"><label>副编码</label><input id="subCode" placeholder="例如：001-黑色-M"></div>
 <div class="field"><label>大分类</label><select id="category" onchange="updateSubcategory()"></select></div>
 <div class="field"><label>小分类</label><select id="subcategory"></select></div>
 <div class="field"><label>品牌</label><input id="brand" placeholder="ZARA"></div>
@@ -458,6 +459,7 @@ items=items.map(x=>({
 ...x,
 category:x.category==="连衣裙"?"全身":x.category,
 code:x.code||"",
+subCode:x.subCode||"",
 retailPrice:x.retailPrice||"",
 subCategory:x.subCategory||"其他",
 images:normalizeImages(x),
@@ -499,14 +501,14 @@ if(!accessToken)throw new Error("没有 Google Drive 权限");
 let q=`name = '${CLOUD_FILE_NAME.replace(/'/g,"\\'")}' and trashed = false`;
 let url="https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent(q)+"&spaces=drive&fields=files(id,name,modifiedTime)&pageSize=10";
 let r=await fetch(url,{headers:{Authorization:"Bearer "+accessToken}});
-if(r.status===401)throw new Error("Google 登录已过期");
+if(r.status===401){driveReady=false;accessToken=null;cloudFileId=null;setDriveStatus("Google Drive：正在重新连接…");googleLogin(false);throw new Error("Google 登录已过期，正在自动重新连接")}
 if(!r.ok)throw new Error(await r.text()||"无法查找云端数据");
 let data=await r.json();
 return data.files?.[0]||null;
 }
 async function downloadCloudFile(id){
 let r=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
-if(r.status===401)throw new Error("Google 登录已过期");
+if(r.status===401){driveReady=false;accessToken=null;setDriveStatus("Google Drive：正在重新连接…");googleLogin(false);throw new Error("Google 登录已过期，正在自动重新连接")}
 if(!r.ok)throw new Error(await r.text()||"无法读取云端数据");
 return await r.json();
 }
@@ -526,7 +528,7 @@ async function updateCloudFile(){
 let body=JSON.stringify(cloudPayload());
 let r=await fetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(cloudFileId)+"?uploadType=media",{method:"PATCH",headers:{Authorization:"Bearer "+accessToken,"Content-Type":"application/json"},body});
 if(r.status===404){cloudFileId=null;return await createCloudFile()}
-if(r.status===401)throw new Error("Google 登录已过期");
+if(r.status===401){driveReady=false;accessToken=null;cloudFileId=null;setDriveStatus("Google Drive：正在重新连接…");googleLogin(false);throw new Error("Google 登录已过期，正在自动重新连接")}
 if(!r.ok)throw new Error(await r.text()||"更新云端数据失败");
 return await r.json();
 }
@@ -590,9 +592,12 @@ tokenClient=google.accounts.oauth2.initTokenClient({
 client_id:CLIENT_ID,
 scope:DRIVE_SCOPE,
 callback:async response=>{
-if(response.error){setDriveStatus("Google Drive：连接失败");setSyncStatus("数据：未同步");return}
+if(response.error){googleTokenRequestInProgress=false;setDriveStatus("Google Drive：连接失败");setSyncStatus("数据：未同步");return}
+googleTokenRequestInProgress=false;
 accessToken=response.access_token;
 driveReady=true;
+googleAuthorizedBefore=true;
+localStorage.setItem("wardrobe_google_authorized_v1","1");
 setDriveStatus("Google Drive：已连接 ✓",true);
 try{
 await loadCloudData();
@@ -608,11 +613,26 @@ alert("无法读取云端衣橱数据。\n\n"+(e.message||e));
 })
 }
 
-function googleLogin(){
+let googleAuthorizedBefore=localStorage.getItem("wardrobe_google_authorized_v1")==="1";
+let googleTokenRequestInProgress=false;
+function googleLogin(forceConsent=false){
 if(!tokenClient){return alert("Google 登录组件还没有加载完成，请稍等几秒后再试。")}
-tokenClient.requestAccessToken({prompt:"consent"})
+if(googleTokenRequestInProgress)return;
+googleTokenRequestInProgress=true;
+try{
+// 第一次连接需要同意授权；以后优先直接申请新的短期访问令牌，避免每次都重新显示授权页面。
+tokenClient.requestAccessToken({prompt:forceConsent||!googleAuthorizedBefore?"consent":""});
+}catch(e){
+console.error(e);
+googleTokenRequestInProgress=false;
+setDriveStatus("Google Drive：连接失败");
 }
-async function ensureDrive(){if(driveReady&&accessToken){return true}googleLogin();return false}
+}
+async function ensureDrive(){
+if(driveReady&&accessToken)return true;
+googleLogin(false);
+return false;
+}
 async function uploadToDrive(file){
 if(!accessToken){throw new Error("没有 Google Drive 登录权限")}
 let metadata={name:"衣橱_"+Date.now()+"_"+file.name,mimeType:file.type,description:"衣橱管家图片"};
@@ -629,7 +649,7 @@ if(imageCache[id]){return imageCache[id]}
 if(!accessToken){return null}
 try{
 let r=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
-if(r.status===401){driveReady=false;accessToken=null;setDriveStatus("Google Drive：登录已过期，请重新连接");return null}
+if(r.status===401){driveReady=false;accessToken=null;setDriveStatus("Google Drive：正在重新连接…");googleLogin(false);return null}
 if(!r.ok)return null;
 let blob=await r.blob();
 let url=URL.createObjectURL(blob);
@@ -744,7 +764,7 @@ let sf=$("subFilter").value;
 let list=items.filter(x=>
 (!f||x.category===f)&&
 (!sf||x.subCategory===sf)&&
-(!q||(x.name+x.code+x.brand+colorNames(x)).toLowerCase().includes(q))
+(!q||(x.name+x.code+x.subCode+x.brand+colorNames(x)).toLowerCase().includes(q))
 );
 $("grid").innerHTML=list.length?list.map(card).join(""):`
 <div class="empty">还没有找到衣服<br><button class="primary" style="margin-top:15px" onclick="openAdd()">添加第一件衣服</button></div>`;
@@ -766,6 +786,7 @@ ${src?`<img src="${src}">`:`<div class="emoji">${x.emoji||icons[x.category]||"�
 <div class="info">
 <div class="name">${esc(x.name)}</div>
 ${x.code?`<div class="code-text">编码：${esc(x.code)}</div>`:""}
+${x.subCode?`<div class="code-text">副编码：${esc(x.subCode)}</div>`:""}
 <div class="meta">${esc(x.category)}${x.subCategory?" · "+esc(x.subCategory):""}</div>
 <div class="meta">${x.stockMode==="color"?(x.colors||[]).length+" 个颜色":x.stockMode==="size"?(x.sizes||[]).length+" 个号码":(x.variants||[]).length+" 个规格"} · ${stock} 件库存${x.images?.length>1?" · "+x.images.length+" 张图片":""}</div>
 ${x.retailPrice?`<div class="retail-price">零售价 ${money(x.retailPrice)}</div>`:""}
@@ -781,7 +802,7 @@ let x=items.filter(x=>{
 let q=($("search").value||"").toLowerCase();
 let f=$("filter").value;
 let sf=$("subFilter").value;
-return((!f||x.category===f)&&(!sf||x.subCategory===sf)&&(!q||(x.name+x.code+x.brand+colorNames(x)).toLowerCase().includes(q)))
+return((!f||x.category===f)&&(!sf||x.subCategory===sf)&&(!q||(x.name+x.code+x.subCode+x.brand+colorNames(x)).toLowerCase().includes(q)))
 })[i];
 let id=x?.images?.[0];
 let src=imageCache[id];
@@ -1048,6 +1069,7 @@ let data={
 id:id||Date.now(),
 name:$("name").value.trim(),
 code:$("code").value.trim(),
+subCode:$("subCode").value.trim(),
 category:$("category").value,
 subCategory:$("subcategory").value,
 brand:$("brand").value.trim(),
@@ -1137,6 +1159,7 @@ $("detailContent").innerHTML=`
 <h2>${esc(x.name)}</h2>
 <div class="rows">
 ${row("编码",x.code||"—")}
+${row("副编码",x.subCode||"—")}
 ${row("分类",(x.category||"—")+" · "+(x.subCategory||"—"))}
 ${row("购买时间",x.date)}
 ${row("购买价格",x.price?money(x.price):"—")}
@@ -1574,6 +1597,7 @@ $("modalTitle").textContent="编辑款式资料";
 updateCategorySelects();
 $("name").value=x.name||"";
 $("code").value=x.code||"";
+$("subCode").value=x.subCode||"";
 $("category").value=x.category||cats[0];
 updateSubcategory(x.subCategory||"");
 $("brand").value=x.brand||"";
@@ -1755,8 +1779,13 @@ renderPalette();
 if(window.google&&google.accounts&&google.accounts.oauth2){initGoogle()}
 window.addEventListener("load",()=>{
 setTimeout(()=>{
-if(window.google&&google.accounts&&google.accounts.oauth2){initGoogle()}
-},500)
+if(window.google&&google.accounts&&google.accounts.oauth2){
+initGoogle();
+// 如果这个浏览器以前已经授权过，自动尝试重新取得新的访问令牌。
+// 这样重新打开电脑/手机页面时通常不需要再次点击“连接 Google Drive”。
+if(googleAuthorizedBefore&&!driveReady){googleLogin(false)}
+}
+},700)
 });
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogle()"></script>
