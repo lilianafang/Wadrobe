@@ -285,7 +285,10 @@ body.dark input::placeholder,body.dark textarea::placeholder{color:#8f8881}
 <p>衣服资料、分类、颜色库存和销售记录会同步到你的 Google Drive。照片也保存在 Google Drive。电脑和手机登录同一个 Google 账号后可以使用同一份数据。</p>
 <div id="driveStatus" class="drive-status">Google Drive：未连接</div>
 <div id="syncStatus" class="drive-status">数据：未同步</div>
-<div class="drive-login"><button class="primary" onclick="googleLogin()">连接 Google Drive</button></div>
+<div class="drive-login">
+<button class="primary" onclick="googleLogin(false)">连接 Google Drive</button>
+<button class="iconbtn" onclick="googleLogout()">退出 Google Drive</button>
+</div>
 <br>
 <button class="iconbtn" onclick="clearAll()">清空全部库存</button>
 <button class="iconbtn" onclick="resetCategories()">恢复默认分类</button>
@@ -312,6 +315,7 @@ body.dark input::placeholder,body.dark textarea::placeholder{color:#8f8881}
 </div>
 <div class="field"><label>名称</label><input id="name" required placeholder="例如：米色风衣"></div>
 <div class="field"><label>编码</label><input id="code" placeholder="例如：DR-2026-001"></div>
+<div class="field"><label>副编码</label><input id="subCode" placeholder="例如：001-黑色-M"></div>
 <div class="field"><label>大分类</label><select id="category" onchange="updateSubcategory()"></select></div>
 <div class="field"><label>小分类</label><select id="subcategory"></select></div>
 <div class="field"><label>品牌</label><input id="brand" placeholder="ZARA"></div>
@@ -399,6 +403,8 @@ const key="wardrobe_inventory_v1";
 const categoryKey="wardrobe_categories_v1";
 const salesKey="wardrobe_sales_v1";
 const paletteKey="wardrobe_palette_v1";
+const googleAuthKey="wardrobe_google_authorized_v1";
+const cloudTimestampKey="wardrobe_cloud_updated_v1";
 const defaultCats=["上衣","下装","外套","全身","鞋子","包包","配饰","其他"];
 const defaultSubcats={
 "上衣":["衬衫","短袖","卫衣","毛衣","针织衫","背心","吊带","Polo衫","其他"],
@@ -437,6 +443,14 @@ let eyedropperImages=[];
 let eyedropperImageUrls=[];
 let eyedropperCurrentIndex=0;
 let sampledHex="#d8c3a5";
+let googleAuthorizedBefore=localStorage.getItem(googleAuthKey)==="1";
+let googleTokenRequestInProgress=false;
+let cloudFileId=null;
+let cloudSyncTimer=null;
+let cloudSyncing=false;
+let cloudDirty=false;
+let cloudLoading=false;
+const CLOUD_FILE_NAME="衣橱管家_云端数据.json";
 function normalizeImages(x){
 if(Array.isArray(x.images)&&x.images.length){return x.images.filter(Boolean)}
 if(x.image){return[x.image]}
@@ -458,6 +472,7 @@ items=items.map(x=>({
 ...x,
 category:x.category==="连衣裙"?"全身":x.category,
 code:x.code||"",
+subCode:x.subCode||"",
 retailPrice:x.retailPrice||"",
 subCategory:x.subCategory||"其他",
 images:normalizeImages(x),
@@ -467,12 +482,6 @@ sizes:normalizeSizes(x),
 variants:normalizeVariants(x)
 }));
 const $=id=>document.getElementById(id);
-let cloudFileId=null;
-let cloudSyncTimer=null;
-let cloudSyncing=false;
-let cloudDirty=false;
-let cloudLoading=false;
-const CLOUD_FILE_NAME="衣橱管家_云端数据.json";
 const saveLocal=()=>{
 localStorage.setItem(key,JSON.stringify(items));
 localStorage.setItem(salesKey,JSON.stringify(sales));
@@ -494,19 +503,23 @@ function setSyncStatus(text,ok=false){
 let el=$("syncStatus");
 if(el){el.textContent=text;el.className="drive-status"+(ok?" drive-ok":"")}
 }
+function setDriveStatus(text,ok=false){
+let el=$("driveStatus");
+if(el){el.textContent=text;el.className="drive-status"+(ok?" drive-ok":"")}
+}
 async function findCloudFile(){
 if(!accessToken)throw new Error("没有 Google Drive 权限");
 let q=`name = '${CLOUD_FILE_NAME.replace(/'/g,"\\'")}' and trashed = false`;
 let url="https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent(q)+"&spaces=drive&fields=files(id,name,modifiedTime)&pageSize=10";
 let r=await fetch(url,{headers:{Authorization:"Bearer "+accessToken}});
-if(r.status===401){driveReady=false;accessToken=null;cloudFileId=null;setDriveStatus("Google Drive：正在重新连接…");googleLogin(false);throw new Error("Google 登录已过期，正在自动重新连接")}
+if(r.status===401){handleTokenExpired();throw new Error("Google 登录已过期，正在自动重新连接")}
 if(!r.ok)throw new Error(await r.text()||"无法查找云端数据");
 let data=await r.json();
 return data.files?.[0]||null;
 }
 async function downloadCloudFile(id){
 let r=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
-if(r.status===401){driveReady=false;accessToken=null;setDriveStatus("Google Drive：正在重新连接…");googleLogin(false);throw new Error("Google 登录已过期，正在自动重新连接")}
+if(r.status===401){handleTokenExpired();throw new Error("Google 登录已过期，正在自动重新连接")}
 if(!r.ok)throw new Error(await r.text()||"无法读取云端数据");
 return await r.json();
 }
@@ -520,14 +533,16 @@ let r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=m
 if(!r.ok)throw new Error(await r.text()||"创建云端数据失败");
 let f=await r.json();
 cloudFileId=f.id;
+localStorage.setItem(cloudTimestampKey,new Date().toISOString());
 return f;
 }
 async function updateCloudFile(){
 let body=JSON.stringify(cloudPayload());
 let r=await fetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(cloudFileId)+"?uploadType=media",{method:"PATCH",headers:{Authorization:"Bearer "+accessToken,"Content-Type":"application/json"},body});
 if(r.status===404){cloudFileId=null;return await createCloudFile()}
-if(r.status===401){driveReady=false;accessToken=null;cloudFileId=null;setDriveStatus("Google Drive：正在重新连接…");googleLogin(false);throw new Error("Google 登录已过期，正在自动重新连接")}
+if(r.status===401){handleTokenExpired();throw new Error("Google 登录已过期，正在自动重新连接")}
 if(!r.ok)throw new Error(await r.text()||"更新云端数据失败");
+localStorage.setItem(cloudTimestampKey,new Date().toISOString());
 return await r.json();
 }
 async function syncCloudNow(){
@@ -543,7 +558,6 @@ setSyncStatus("数据：已同步 ✓",true);
 }catch(e){
 console.error(e);
 setSyncStatus("数据：同步失败，请重新连接");
-if(String(e.message||e).includes("过期")){driveReady=false;accessToken=null;cloudFileId=null;setDriveStatus("Google Drive：登录已过期，请重新连接")}
 }finally{
 cloudSyncing=false;
 if(cloudDirty){clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>syncCloudNow(),300)}
@@ -582,7 +596,18 @@ const money=v=>v!==""&&v!=null&&!isNaN(Number(v))?"€"+Number(v).toFixed(2):"";
 const totalStock=x=>x.stockMode==="size"?(x.sizes||[]).reduce((s,z)=>s+(Number(z.stock)||0),0):x.stockMode==="both"?(x.variants||[]).reduce((s,v)=>s+(Number(v.stock)||0),0):(x.colors||[]).reduce((s,c)=>s+(Number(c.stock)||0),0);
 const colorNames=x=>x.stockMode==="size"?(x.sizes||[]).map(z=>z.name).join("、"):x.stockMode==="both"?(x.variants||[]).map(v=>v.color+" "+v.size).join("、"):(x.colors||[]).map(c=>c.name).join("、");
 const today=()=>new Date().toISOString().slice(0,10);
-function setDriveStatus(text,ok=false){$("driveStatus").textContent=text;$("driveStatus").className="drive-status"+(ok?" drive-ok":"")}
+function handleTokenExpired(){
+driveReady=false;
+accessToken=null;
+cloudFileId=null;
+setDriveStatus("Google Drive：正在重新连接…");
+if(googleAuthorizedBefore&&tokenClient&&!googleTokenRequestInProgress){
+googleTokenRequestInProgress=true;
+try{tokenClient.requestAccessToken({prompt:""})}catch(e){googleTokenRequestInProgress=false;setDriveStatus("Google Drive：请重新连接")}
+}else{
+setDriveStatus("Google Drive：请重新连接");
+}
+}
 function initGoogle(){
 if(!window.google||!google.accounts||!google.accounts.oauth2){return}
 if(tokenClient)return;
@@ -590,12 +615,17 @@ tokenClient=google.accounts.oauth2.initTokenClient({
 client_id:CLIENT_ID,
 scope:DRIVE_SCOPE,
 callback:async response=>{
-if(response.error){googleTokenRequestInProgress=false;setDriveStatus("Google Drive：连接失败");setSyncStatus("数据：未同步");return}
 googleTokenRequestInProgress=false;
+if(response.error){
+setDriveStatus("Google Drive：连接失败");
+if(googleAuthorizedBefore){setDriveStatus("Google Drive：已断开，请重新连接")}
+setSyncStatus("数据：未同步");
+return
+}
 accessToken=response.access_token;
 driveReady=true;
 googleAuthorizedBefore=true;
-localStorage.setItem("wardrobe_google_authorized_v1","1");
+localStorage.setItem(googleAuthKey,"1");
 setDriveStatus("Google Drive：已连接 ✓",true);
 try{
 await loadCloudData();
@@ -610,21 +640,34 @@ alert("无法读取云端衣橱数据。\n\n"+(e.message||e));
 }
 })
 }
-
-let googleAuthorizedBefore=localStorage.getItem("wardrobe_google_authorized_v1")==="1";
-let googleTokenRequestInProgress=false;
 function googleLogin(forceConsent=false){
 if(!tokenClient){return alert("Google 登录组件还没有加载完成，请稍等几秒后再试。")}
 if(googleTokenRequestInProgress)return;
 googleTokenRequestInProgress=true;
 try{
-// 第一次连接需要同意授权；以后优先直接申请新的短期访问令牌，避免每次都重新显示授权页面。
-tokenClient.requestAccessToken({prompt:forceConsent||!googleAuthorizedBefore?"consent":""});
+// 静默刷新：只要之前授权过且仍有效，就不会再弹出授权页，刷新页面也不会断链。
+tokenClient.requestAccessToken({prompt:forceConsent?"consent":""});
 }catch(e){
 console.error(e);
 googleTokenRequestInProgress=false;
 setDriveStatus("Google Drive：连接失败");
 }
+}
+function googleLogout(){
+if(!confirm("确定退出 Google Drive 吗？退出后需要重新点击“连接 Google Drive”才能同步。")){return}
+let token=accessToken;
+accessToken=null;
+driveReady=false;
+cloudFileId=null;
+googleAuthorizedBefore=false;
+localStorage.removeItem(googleAuthKey);
+localStorage.removeItem(cloudTimestampKey);
+setDriveStatus("Google Drive：已退出");
+setSyncStatus("数据：本地模式");
+if(window.google&&google.accounts&&google.accounts.oauth2&&token){
+try{google.accounts.oauth2.revoke(token,()=>{})}catch(e){}
+}
+alert("已退出 Google Drive。数据仍保存在本机，重新连接后可以继续同步。");
 }
 async function ensureDrive(){
 if(driveReady&&accessToken)return true;
@@ -647,7 +690,7 @@ if(imageCache[id]){return imageCache[id]}
 if(!accessToken){return null}
 try{
 let r=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
-if(r.status===401){driveReady=false;accessToken=null;setDriveStatus("Google Drive：正在重新连接…");googleLogin(false);return null}
+if(r.status===401){handleTokenExpired();return null}
 if(!r.ok)return null;
 let blob=await r.blob();
 let url=URL.createObjectURL(blob);
@@ -762,7 +805,7 @@ let sf=$("subFilter").value;
 let list=items.filter(x=>
 (!f||x.category===f)&&
 (!sf||x.subCategory===sf)&&
-(!q||(x.name+x.code+x.brand+colorNames(x)).toLowerCase().includes(q))
+(!q||(x.name+x.code+x.subCode+x.brand+colorNames(x)).toLowerCase().includes(q))
 );
 $("grid").innerHTML=list.length?list.map(card).join(""):`
 <div class="empty">还没有找到衣服<br><button class="primary" style="margin-top:15px" onclick="openAdd()">添加第一件衣服</button></div>`;
@@ -784,6 +827,7 @@ ${src?`<img src="${src}">`:`<div class="emoji">${x.emoji||icons[x.category]||"�
 <div class="info">
 <div class="name">${esc(x.name)}</div>
 ${x.code?`<div class="code-text">编码：${esc(x.code)}</div>`:""}
+${x.subCode?`<div class="code-text">副编码：${esc(x.subCode)}</div>`:""}
 <div class="meta">${esc(x.category)}${x.subCategory?" · "+esc(x.subCategory):""}</div>
 <div class="meta">${x.stockMode==="color"?(x.colors||[]).length+" 个颜色":x.stockMode==="size"?(x.sizes||[]).length+" 个号码":(x.variants||[]).length+" 个规格"} · ${stock} 件库存${x.images?.length>1?" · "+x.images.length+" 张图片":""}</div>
 ${x.retailPrice?`<div class="retail-price">零售价 ${money(x.retailPrice)}</div>`:""}
@@ -799,7 +843,7 @@ let x=items.filter(x=>{
 let q=($("search").value||"").toLowerCase();
 let f=$("filter").value;
 let sf=$("subFilter").value;
-return((!f||x.category===f)&&(!sf||x.subCategory===sf)&&(!q||(x.name+x.code+x.brand+colorNames(x)).toLowerCase().includes(q)))
+return((!f||x.category===f)&&(!sf||x.subCategory===sf)&&(!q||(x.name+x.code+x.subCode+x.brand+colorNames(x)).toLowerCase().includes(q)))
 })[i];
 let id=x?.images?.[0];
 let src=imageCache[id];
@@ -1066,6 +1110,7 @@ let data={
 id:id||Date.now(),
 name:$("name").value.trim(),
 code:$("code").value.trim(),
+subCode:$("subCode").value.trim(),
 category:$("category").value,
 subCategory:$("subcategory").value,
 brand:$("brand").value.trim(),
@@ -1155,6 +1200,7 @@ $("detailContent").innerHTML=`
 <h2>${esc(x.name)}</h2>
 <div class="rows">
 ${row("编码",x.code||"—")}
+${row("副编码",x.subCode||"—")}
 ${row("分类",(x.category||"—")+" · "+(x.subCategory||"—"))}
 ${row("购买时间",x.date)}
 ${row("购买价格",x.price?money(x.price):"—")}
@@ -1592,6 +1638,7 @@ $("modalTitle").textContent="编辑款式资料";
 updateCategorySelects();
 $("name").value=x.name||"";
 $("code").value=x.code||"";
+$("subCode").value=x.subCode||"";
 $("category").value=x.category||cats[0];
 updateSubcategory(x.subCategory||"");
 $("brand").value=x.brand||"";
@@ -1775,8 +1822,7 @@ window.addEventListener("load",()=>{
 setTimeout(()=>{
 if(window.google&&google.accounts&&google.accounts.oauth2){
 initGoogle();
-// 如果这个浏览器以前已经授权过，自动尝试重新取得新的访问令牌。
-// 这样重新打开电脑/手机页面时通常不需要再次点击“连接 Google Drive”。
+// 关键：刷新页面时不再要求手动点击，只要以前授权过就静默续期，保持连接。
 if(googleAuthorizedBefore&&!driveReady){googleLogin(false)}
 }
 },700)
