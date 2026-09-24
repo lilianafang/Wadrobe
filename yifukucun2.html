@@ -848,7 +848,7 @@ if(driveReady&&accessToken)return true;
 googleLogin(false);
 return false;
 }
-async function uploadToDrive(file){
+async function uploadToDriveRaw(file){
 if(!accessToken){throw new Error("没有 Google Drive 登录权限")}
 let metadata={name:"衣橱_"+Date.now()+"_"+file.name,mimeType:file.type,description:"衣橱管家图片"};
 let form=new FormData();
@@ -2463,10 +2463,9 @@ function compressImage(file,maxSide=1600,quality=.78){
     };img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("图片读取失败"))};img.src=url
   })
 }
-const _uploadToDrive=uploadToDrive;
 async function uploadToDrive(file){
   const compressed=await compressImage(file);
-  return await _uploadToDrive(compressed);
+  return await uploadToDriveRaw(compressed);
 }
 function previewPhotos(e){
   const files=[...e.target.files];if(!files.length)return;
@@ -2550,8 +2549,6 @@ function exportExcel(){
 /* 深色模式与导航 */
 bodyDarkFix();
 function bodyDarkFix(){const s=document.createElement("style");s.textContent=".photo-arrow{color:var(--text)!important;background:var(--card)!important}.photo-count{color:#fff!important}.dark-inline{color:var(--text)!important}";document.head.appendChild(s)}
-const _showPage=showPage;
-function showPage(id){_showPage(id)}
 bindNavigation();
 
 /* 旧数据初始化 */
