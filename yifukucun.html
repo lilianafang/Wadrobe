@@ -1841,11 +1841,14 @@ async function findCloudPart(part){
   if(!r.ok)throw new Error(await r.text()||"无法查找云端文件");
   const d=await r.json(); return d.files?.[0]||null;
 }
-async function downloadCloudPart(id){
-  const r=await fetchWithTimeout("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
+async function downloadCloudPart(id,part=""){
+  // 分区读取必须可失败、不可阻塞整个应用；meta 即使读取失败也继续使用本地配置。
+  const timeoutMs=part==="meta"?10000:15000;
+  const r=await fetchWithTimeout("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}},timeoutMs);
   if(r.status===401){handleTokenExpired();throw new Error("Google 登录已过期")};
   if(!r.ok)throw new Error(await r.text()||"无法读取云端数据");
-  return await r.json();
+  const text=await r.text();
+  try{return JSON.parse(text)}catch(e){throw new Error((part?part+" 分区":"云端")+"数据不是有效 JSON")};
 }
 async function createCloudPart(part){
   const body=JSON.stringify(partPayload(part));
@@ -1925,22 +1928,35 @@ async function loadCloudData(){
         }
       }catch(e){console.warn("旧版云端数据迁移跳过",e)}
     }
+    const partReadErrors=[];
     for(const part of CLOUD_PART_KEYS){
       setSyncStatus("数据：正在读取 "+part+" 分区…");
-      if(!cloudPartIds[part]){await createCloudPart(part);continue}
-      const d=await downloadCloudPart(cloudPartIds[part]);
-      const remoteRev=Number(d.revision)||0;
-      const localRev=Number(syncMeta.parts?.[part]||0);
-      if(remoteRev>localRev&&!cloudDirtyParts.has(part)){
-        applyCloudPart(part,d);syncMeta.parts[part]=remoteRev;syncMeta.revision=Math.max(Number(syncMeta.revision)||0,remoteRev);syncMeta.updatedAt=d.updatedAt||syncMeta.updatedAt;
-      }else if(remoteRev>localRev&&cloudDirtyParts.has(part)){
-        mergePart(part,d);touchRevision(part);await updateCloudPart(part);cloudDirtyParts.delete(part);
+      try{
+        if(!cloudPartIds[part]){await createCloudPart(part);continue}
+        const d=await downloadCloudPart(cloudPartIds[part],part);
+        const remoteRev=Number(d.revision)||0;
+        const localRev=Number(syncMeta.parts?.[part]||0);
+        if(remoteRev>localRev&&!cloudDirtyParts.has(part)){
+          applyCloudPart(part,d);syncMeta.parts[part]=remoteRev;syncMeta.revision=Math.max(Number(syncMeta.revision)||0,remoteRev);syncMeta.updatedAt=d.updatedAt||syncMeta.updatedAt;
+        }else if(remoteRev>localRev&&cloudDirtyParts.has(part)){
+          mergePart(part,d);touchRevision(part);await updateCloudPart(part);cloudDirtyParts.delete(part);
+        }
+      }catch(partErr){
+        console.warn("分区读取失败",part,partErr);
+        partReadErrors.push(part+"："+(partErr?.message||partErr));
+        // 某一个分区（尤其 meta）异常时不要阻塞整个应用；保留本地数据，稍后重试。
       }
     }
     saveLocal();persistDirtyParts();localStorage.setItem(syncMetaKey,JSON.stringify(syncMeta));
     await runDailyDriveBackup();
     cloudDirty=cloudDirtyParts.size>0;
-    if(cloudDirty)await syncCloudNow();else rememberSync();
+    if(cloudDirty)await syncCloudNow();
+    else rememberSync();
+    if(partReadErrors.length){
+      setSyncStatus("数据：部分分区读取失败，已使用本地数据；稍后会自动重试（"+partReadErrors.map(x=>x.split("：")[0]).join("、")+")");
+    }else{
+      setSyncStatus("数据：分区同步完成 ✓");
+    }
     render();renderPalette();renderTrash();renderLogs();renderAnalytics();
   }catch(e){console.error(e);setSyncStatus(navigator.onLine?"数据：分区同步失败："+(e?.message||e):"数据：离线，修改已保存在本机");throw e}
   finally{cloudLoading=false}
