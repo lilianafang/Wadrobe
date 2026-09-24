@@ -672,7 +672,10 @@ function touchRevision(part="meta"){
   localStorage.setItem(syncMetaKey,JSON.stringify(syncMeta));
 }
 const CLOUD_PART_KEYS=["items","sales","logs","meta"];
+window.CLOUD_PART_KEYS=CLOUD_PART_KEYS;
+window.cloud_part_keys=CLOUD_PART_KEYS;
 const cloudDirtyKey="wardrobe_cloud_dirty_v2";
+if(localStorage.getItem(cloudDirtyKey)==="1") cloudDirty=true;
 const cloudDirtyParts=new Set(JSON.parse(localStorage.getItem("wardrobe_cloud_dirty_parts_v2")||"[]"));
 function persistDirtyParts(){
   try{localStorage.setItem("wardrobe_cloud_dirty_parts_v2",JSON.stringify([...cloudDirtyParts]));}catch(e){}
@@ -1819,17 +1822,27 @@ function partPayload(part){
   if(part==="logs")return {...base,stockLog};
   return {...base,cats,subcats,palette};
 }
+async function fetchWithTimeout(url, options={}, timeoutMs=15000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    return await fetch(url,{...options,signal:controller.signal});
+  }catch(e){
+    if(e&&e.name==="AbortError") throw new Error("Google Drive 请求超时，请检查网络或重新连接 Google Drive");
+    throw e;
+  }finally{clearTimeout(timer)}
+}
 async function findCloudPart(part){
   if(!accessToken)throw new Error("没有 Google Drive 权限");
   const q=`name = '${CLOUD_PART_NAMES[part].replace(/'/g,"\\'")}' and trashed = false`;
   const url="https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent(q)+"&spaces=drive&fields=files(id,name,modifiedTime)&pageSize=10";
-  const r=await fetch(url,{headers:{Authorization:"Bearer "+accessToken}});
+  const r=await fetchWithTimeout(url,{headers:{Authorization:"Bearer "+accessToken}});
   if(r.status===401){handleTokenExpired();throw new Error("Google 登录已过期")};
   if(!r.ok)throw new Error(await r.text()||"无法查找云端文件");
   const d=await r.json(); return d.files?.[0]||null;
 }
 async function downloadCloudPart(id){
-  const r=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
+  const r=await fetchWithTimeout("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
   if(r.status===401){handleTokenExpired();throw new Error("Google 登录已过期")};
   if(!r.ok)throw new Error(await r.text()||"无法读取云端数据");
   return await r.json();
@@ -1840,7 +1853,7 @@ async function createCloudPart(part){
   const form=new FormData();
   form.append("metadata",new Blob([JSON.stringify(metadata)],{type:"application/json"}));
   form.append("file",new Blob([body],{type:"application/json"}));
-  const r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime",{method:"POST",headers:{Authorization:"Bearer "+accessToken},body:form});
+  const r=await fetchWithTimeout("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime",{method:"POST",headers:{Authorization:"Bearer "+accessToken},body:form},30000);
   if(!r.ok)throw new Error(await r.text()||"创建云端文件失败");
   const f=await r.json(); cloudPartIds[part]=f.id; return f;
 }
@@ -1848,7 +1861,7 @@ async function updateCloudPart(part){
   if(!cloudPartIds[part]){const f=await findCloudPart(part);cloudPartIds[part]=f?.id||null}
   if(!cloudPartIds[part])return createCloudPart(part);
   const body=JSON.stringify(partPayload(part));
-  const r=await fetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(cloudPartIds[part])+"?uploadType=media",{method:"PATCH",headers:{Authorization:"Bearer "+accessToken,"Content-Type":"application/json"},body});
+  const r=await fetchWithTimeout("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(cloudPartIds[part])+"?uploadType=media",{method:"PATCH",headers:{Authorization:"Bearer "+accessToken,"Content-Type":"application/json"},body},30000);
   if(r.status===404){cloudPartIds[part]=null;return createCloudPart(part)}
   if(r.status===401){handleTokenExpired();throw new Error("Google 登录已过期")};
   if(!r.ok)throw new Error(await r.text()||"更新云端文件失败");
@@ -1889,7 +1902,12 @@ async function loadCloudData(){
   cloudLoading=true;setSyncStatus("数据：正在检查分区云端版本…");
   try{
     let existingCount=0;
-    for(const part of CLOUD_PART_KEYS){const f=await findCloudPart(part);if(f){cloudPartIds[part]=f.id;existingCount++}}
+    setSyncStatus("数据：正在查找云端分区…");
+    const foundParts=await Promise.all(CLOUD_PART_KEYS.map(async part=>{
+      const f=await findCloudPart(part);
+      return {part,f};
+    }));
+    for(const {part,f} of foundParts){if(f){cloudPartIds[part]=f.id;existingCount++}}
     // 兼容旧版“单个云端 JSON”：第一次升级时自动拆成 4 个文件，不丢数据。
     if(existingCount===0){
       try{
@@ -1908,6 +1926,7 @@ async function loadCloudData(){
       }catch(e){console.warn("旧版云端数据迁移跳过",e)}
     }
     for(const part of CLOUD_PART_KEYS){
+      setSyncStatus("数据：正在读取 "+part+" 分区…");
       if(!cloudPartIds[part]){await createCloudPart(part);continue}
       const d=await downloadCloudPart(cloudPartIds[part]);
       const remoteRev=Number(d.revision)||0;
@@ -1923,7 +1942,7 @@ async function loadCloudData(){
     cloudDirty=cloudDirtyParts.size>0;
     if(cloudDirty)await syncCloudNow();else rememberSync();
     render();renderPalette();renderTrash();renderLogs();renderAnalytics();
-  }catch(e){console.error(e);setSyncStatus(navigator.onLine?"数据：分区同步检查失败，请稍后重试":"数据：离线，修改已保存在本机");throw e}
+  }catch(e){console.error(e);setSyncStatus(navigator.onLine?"数据：分区同步失败："+(e?.message||e):"数据：离线，修改已保存在本机");throw e}
   finally{cloudLoading=false}
 }
 async function syncCloudNow(){
@@ -2343,8 +2362,6 @@ window.addEventListener("offline",()=>{setSyncStatus("数据：已离线，修�
 window.addEventListener("online",()=>{setSyncStatus("数据：网络已恢复，正在同步…");if(googleAuthorizedBefore){if(driveReady&&accessToken)syncCloudNow();else if(tokenClient)googleLogin(false)}});
 
 /* 刷新后保留待同步状态 */
-if(localStorage.getItem(cloudDirtyKey)==="1")cloudDirty=true;
-
 // 本地 HTML 打开时，如果某个可选功能出错，不应让整个页面失去响应。
 window.addEventListener("error",e=>{
   console.error(e.error||e.message);
