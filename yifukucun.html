@@ -671,6 +671,27 @@ function touchRevision(part="meta"){
   syncMeta.parts[part]=syncMeta.revision;
   localStorage.setItem(syncMetaKey,JSON.stringify(syncMeta));
 }
+const CLOUD_PART_KEYS=["items","sales","logs","meta"];
+const cloudDirtyKey="wardrobe_cloud_dirty_v2";
+const cloudDirtyParts=new Set(JSON.parse(localStorage.getItem("wardrobe_cloud_dirty_parts_v2")||"[]"));
+function persistDirtyParts(){
+  try{localStorage.setItem("wardrobe_cloud_dirty_parts_v2",JSON.stringify([...cloudDirtyParts]));}catch(e){}
+}
+function markPartDirty(part){
+  if(!CLOUD_PART_KEYS.includes(part)) return;
+  cloudDirtyParts.add(part);
+  persistDirtyParts();
+  cloudDirty=true;
+  localStorage.setItem(cloudDirtyKey,"1");
+  clearTimeout(cloudSyncTimer);
+  if(!cloudLoading && driveReady && accessToken){
+    cloudSyncTimer=setTimeout(()=>{
+      if(typeof syncCloudNow==="function") syncCloudNow().catch(e=>console.warn("分区自动同步失败",e));
+    },700);
+  }else if(!driveReady || !accessToken){
+    setSyncStatus(navigator.onLine?"数据：有待同步修改":"数据：离线修改已排队");
+  }
+}
 const save=()=>{touchRevision("items");localStorage.setItem(key,JSON.stringify(items));saveLocalBackup();markPartDirty("items")};
 const saveSales=()=>{touchRevision("sales");localStorage.setItem(salesKey,JSON.stringify(sales));saveLocalBackup();markPartDirty("sales")};
 const saveCategories=()=>{touchRevision("meta");localStorage.setItem(categoryKey,JSON.stringify({cats,subcats}));saveLocalBackup();markPartDirty("meta")};
@@ -1732,26 +1753,6 @@ if(googleAuthorizedBefore&&!driveReady){googleLogin(false)}
 });
 
 /* ===== 衣橱管家增强版：高级筛选 / 日志 / 回收站 / 冲突同步 / 图片处理 / 报表 ===== */
-const cloudDirtyKey="wardrobe_cloud_dirty_v2";
-const CLOUD_PART_KEYS=["items","sales","logs","meta"];
-const cloudDirtyParts=new Set(JSON.parse(localStorage.getItem("wardrobe_cloud_dirty_parts_v2")||"[]"));
-function persistDirtyParts(){
-  try{localStorage.setItem("wardrobe_cloud_dirty_parts_v2",JSON.stringify([...cloudDirtyParts]));}catch(e){}
-}
-function markPartDirty(part){
-  if(!CLOUD_PART_KEYS.includes(part)) return;
-  cloudDirtyParts.add(part);
-  persistDirtyParts();
-  cloudDirty=true;
-  localStorage.setItem(cloudDirtyKey,"1");
-  clearTimeout(cloudSyncTimer);
-  if(!cloudLoading && driveReady && accessToken){
-    cloudSyncTimer=setTimeout(()=>syncCloudNow().catch(e=>console.warn("分区自动同步失败",e)),700);
-  }else if(!driveReady || !accessToken){
-    setSyncStatus(navigator.onLine?"数据：有待同步修改":"数据：离线修改已排队");
-  }
-}
-
 function activeItems(){return items.filter(x=>!x.deleted)}
 function activeColors(x){return (x.colors||[]).filter(c=>!c.deleted)}
 function activeSizes(x){return (x.sizes||[]).filter(z=>!z.deleted)}
